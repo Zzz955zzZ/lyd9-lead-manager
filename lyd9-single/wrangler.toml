@@ -1,0 +1,6 @@
+# Cloudflare Pages 配置
+# 方式一（最自动）：Cloudflare 控制台 "Pages → Connect to Git" 选本仓库，
+#   框架预设选 "None"，构建命令留空，输出目录填 "."  → 每次 git push 自动上线。
+# 方式二（本地一条命令）：先设好环境变量后再执行部署脚本 scripts/deploy-cloudflare.sh
+name = "lyd9-lead-manager"
+pages_build_output_dir = "."

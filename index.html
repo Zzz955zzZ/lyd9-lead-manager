@@ -1,0 +1,689 @@
+<!doctype html>
+<!--
+=====================================================================
+  LYD9 LEAD MANAGER — 单文件版 (One-file edition)
+  用途：2026-11-11~13 马德里展会客户问卷 + 自动评分/分配 + 客户管理
+  特点：单个 HTML 文件，双击即可打开；也可丢到任意静态托管。
+  数据：默认存在浏览器本地(localStorage) + 可一键导出 CSV。
+        多设备汇总：在"后台→设置"里填一个远程地址(如 Google Apps Script /
+        SheetDB)，每次提交会额外 POST 一份 JSON 过去，无需自建服务器。
+
+  【可选】免费远程保存(汇总多台设备)的做法：
+    1) 新建一个 Google 表格，扩展程序→Apps Script，粘贴：
+         function doPost(e){ var d=JSON.parse(e.postData.contents);
+           SpreadsheetApp.getActive().getSheetByName('leads')
+           .appendRow([d.number,d.owner,d.grade,d.score,d.name,
+           d.contact,d.channel,d.project_type,d.stage,d.timeline,
+           d.services.join('|'),d.notes,d.submitted_at]);
+           return ContentService.createTextOutput('ok'); }
+       部署为 Web 应用(任何人/匿名可访问)，复制网址填到"远程保存地址"。
+    2) 表格里建一个名为 leads 的工作表，首行写好表头即可。
+  =====================================================================
+-->
+<html lang="zh">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>LYD9 STUDIO · 展会客户问卷</title>
+<style>
+  :root{
+    --paper:#f6f5f1; --ink:#253d35; --muted:#80867d; --line:#e2e4dc;
+    --accent:#c4d49d; --white:#fff; --soft:#eff1e9;
+  }
+  *{box-sizing:border-box}
+  html,body{width:100%;overflow-x:hidden}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:Arial,"Microsoft YaHei","PingFang SC",sans-serif;
+    font-size:14px;-webkit-font-smoothing:antialiased;}
+  a{color:inherit;text-decoration:none}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid #71884c;outline-offset:3px}
+  h1,h2,h3,p{margin-top:0}
+  fieldset{border:0;margin:0;padding:0} /* 清除 fieldset 浏览器默认灰框，避免半包围边框 */
+  h1{font-size:34px;font-weight:500;letter-spacing:-1.4px;line-height:1.35}
+  h2{font-size:21px;font-weight:500;letter-spacing:-.5px}
+  h3{font-weight:600;font-size:15px}
+  p{line-height:1.8}
+  .wordmark{display:inline-flex;flex-direction:column;font-size:39px;letter-spacing:-3px;font-weight:800;line-height:1}
+  .wordmark span{font-weight:400;font-size:9px;letter-spacing:3.1px;margin-top:9px}
+  .eyebrow{font-size:10px;letter-spacing:1.9px;font-weight:600;margin-bottom:18px}
+  .dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#8caa62;margin-right:8px}
+  .muted{color:var(--muted)}
+  .tiny{font-size:11px}
+  .button{display:inline-flex;align-items:center;justify-content:center;gap:12px;padding:13px 20px;border:1px solid transparent;border-radius:5px;min-height:46px;line-height:1.4;font-size:13px}
+  .primary{background:var(--ink);color:#fff}
+  .primary:hover{background:#385449}
+  .secondary{background:transparent;border-color:#d5dacf}
+  .secondary:hover{background:#edf0e7}
+  .full{width:100%}
+  .icon-link{border:0;background:transparent;display:inline-flex;align-items:center;justify-content:center;min-width:36px;min-height:36px}
+  .language{display:flex;align-items:center;gap:9px;font-size:12px;white-space:nowrap}
+  .language button{background:none;border:0;padding:8px 2px;color:#91978b}
+  .language button[aria-pressed="true"]{color:var(--ink);font-weight:700}
+  .language span{color:#c8cbbf}
+  .field{display:flex;flex-direction:column;gap:9px;font-size:12px;font-weight:500;margin-bottom:20px}
+  .field input,.field select,.field textarea{background:#fff;border:1px solid #dce0d6;border-radius:5px;padding:12px 13px;min-height:44px;color:var(--ink);width:100%;font-weight:400;line-height:1.5}
+  .field textarea{resize:vertical}
+  .field input::placeholder{color:#a0a598}
+  .check-label{display:flex;gap:10px;align-items:flex-start;line-height:1.7;font-size:11px;margin:16px 0}
+  .check-label input{accent-color:var(--ink);margin-top:4px;flex-shrink:0;width:15px;height:15px}
+  .check-label a{text-decoration:underline;text-underline-offset:3px}
+  .notice{background:#eef1df;border:1px solid #dce3c8;padding:14px 16px;font-size:12px;line-height:1.7;border-radius:5px;margin-bottom:20px}
+  .error{color:#a04934;background:#f9ebe4;padding:12px;border-radius:5px;line-height:1.7}
+  /* —— 公共问卷：移动优先，居中单栏，无侧边竖线装饰 —— */
+  .public-shell{max-width:760px;margin:0 auto}
+  .public-header{height:60px;padding:0 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--paper);z-index:20}
+  .public-header .wordmark{font-size:24px;letter-spacing:-2px}
+  .public-header .wordmark span{font-size:6px;letter-spacing:2px;margin-top:4px}
+  .header-right{display:flex;align-items:center;gap:14px}
+  .public-main{display:block;max-width:640px;margin:0 auto;padding:24px 18px 52px}
+  .intro{margin-bottom:20px}
+  .intro h1{font-size:clamp(25px,7vw,36px);font-weight:400;letter-spacing:-1.4px;margin:12px 0 10px;line-height:1.3}
+  .intro h1 span{color:#798968}
+  .intro>p{color:#7e857a;font-size:13px;max-width:540px;line-height:1.8}
+  .intro-meta{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:9px;letter-spacing:1px;color:#8a917f;margin-top:13px}
+  .intro-meta span{display:inline-flex;align-items:center}
+  .intro-meta .dot{margin-right:6px}
+  /* 不再用白色卡片外框：表单直接落在页面底色上，去掉灰色边框/阴影，避免与表单聚焦描边穿模 */
+  .question-card{background:transparent;border:0;box-shadow:none;padding:0}
+  .form-top{display:flex;justify-content:space-between;align-items:center}
+  .form-top .eyebrow{font-size:8px;letter-spacing:1.2px;margin:0}
+  .question-card h2{font-size:23px;margin-bottom:8px;letter-spacing:-.4px}
+  .question-card>p{font-size:12px;margin-bottom:22px}
+  /* form-section 是 <fieldset>：必须先清除浏览器默认的灰色 groove 外框（左/右/下边），只保留顶部分隔线，否则会出现半包围灰框 */
+  .form-section{padding:22px 0 4px;border:0;margin:0;border-top:1px solid var(--line)} /* 仅横向分隔，无侧边竖线 */
+  .form-section:first-of-type{border-top:0;padding-top:6px}
+  .form-section>h3{font-size:14px;font-weight:600;letter-spacing:.2px;margin-bottom:16px;color:var(--ink);display:flex;align-items:center;gap:8px}
+  .form-section>h3::before{content:"";width:7px;height:7px;border-radius:2px;background:var(--accent);display:inline-block}
+  .type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0}
+  .type-choice{position:relative;border:1px solid #dfe3d6;background:#fff;border-radius:8px;min-height:84px;padding:12px 4px;display:flex;align-items:center;flex-direction:column;justify-content:center;gap:10px;font-size:12px;transition:.15s}
+  .type-choice:active{transform:scale(.98)}
+  .type-choice.selected{background:#f1f4e9;border-color:#a8b98c}
+  .type-choice .t-emoji{font-size:22px;line-height:1}
+  .choice-check{position:absolute;top:6px;right:7px;color:#6b793b;font-size:12px}
+  .service-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+  .service-choice{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid var(--line);padding:13px 12px;border-radius:8px;text-align:left;font-size:12px;transition:.15s}
+  .service-choice:active{transform:scale(.98)}
+  .service-choice.selected{background:#f1f4e9;border-color:#a8b98c}
+  .form-actions{display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--line);padding-top:20px;margin-top:22px}
+  .form-actions .primary{min-width:145px}
+  .form-foot{color:#939a89;text-align:center;font-size:10px;margin-top:16px;margin-bottom:0}
+  .public-footer{border-top:1px solid var(--line);max-width:640px;margin:0 auto;padding:20px 18px;display:flex;justify-content:space-between;font-size:8px;letter-spacing:1px;color:#858d7d}
+  .honeypot{position:absolute;left:-9999px;width:1px;height:1px}
+  .success{text-align:center;padding:40px 0}
+  .success-icon{width:55px;height:55px;border-radius:50%;background:var(--soft);display:flex;align-items:center;justify-content:center;margin:0 auto 26px}
+  .success p{font-size:13px}
+  .receipt{font-size:32px;letter-spacing:3px;padding:18px;background:var(--paper);margin:24px 0}
+  .qr{width:145px;height:145px;object-fit:contain;margin:15px auto;display:block}
+  /* admin */
+  .admin-shell{display:flex;min-height:100vh}
+  .sidebar{width:228px;flex-shrink:0;position:fixed;inset:0 auto 0 0;background:#f0f1e9;border-right:1px solid var(--line);padding:35px 24px;display:flex;flex-direction:column}
+  .sidebar .wordmark{font-size:41px;margin:0 8px}
+  .sidebar .wordmark span{font-size:7px;letter-spacing:2px}
+  .sidebar nav{display:flex;flex-direction:column;gap:8px;margin-top:30px}
+  .sidebar nav a{display:flex;align-items:center;gap:13px;padding:13px 12px;font-size:12px;border-radius:5px}
+  .sidebar nav a:hover{background:#e1e7d7}
+  .sidebar nav a.active{background:#e1e7d7;font-weight:600}
+  .sidebar-bottom{margin-top:auto;font-size:12px}
+  .admin-main{margin-left:228px;width:calc(100% - 228px)}
+  .admin-top{height:78px;border-bottom:1px solid var(--line);padding:0 40px;display:flex;justify-content:space-between;align-items:center;font-size:9px;letter-spacing:1.4px}
+  .admin-content{padding:40px;max-width:1550px;margin:auto;min-height:calc(100vh - 140px)}
+  .page-heading{display:flex;justify-content:space-between;gap:24px;align-items:center;margin:0 0 30px}
+  .page-heading .eyebrow{font-size:8px;margin-bottom:13px}
+  .page-heading h1{font-size:29px;margin-bottom:10px}
+  .page-heading p{font-size:12px;margin:0}
+  .metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:17px;margin-bottom:26px}
+  .metric{background:#fff;border:1px solid var(--line);padding:21px;border-radius:6px;min-height:150px}
+  .metric>span{display:flex;justify-content:space-between;align-items:center;font-size:11px}
+  .metric strong{display:block;font-size:43px;font-weight:400;letter-spacing:-1px;margin:16px 0 7px}
+  .metric small{font-size:8px;color:#99a08f;letter-spacing:.7px}
+  .metric-dark{background:var(--ink);color:#f8f9ef;border-color:var(--ink)}
+  .metric-dark small{color:#b4c3a9}
+  .panel{background:#fff;border:1px solid var(--line);border-radius:6px;padding:24px;margin-bottom:24px;min-width:0}
+  .panel h2{font-size:16px;margin-bottom:23px}
+  .filters{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;align-items:center}
+  .filters input{width:270px;font-size:12px;background:#fff;border:1px solid #dce0d6;border-radius:5px;padding:12px 13px;min-height:44px}
+  .filters select{font-size:11px;background:#fff;border:1px solid #dce0d6;border-radius:5px;padding:12px;min-height:44px}
+  .table-wrap{overflow-x:auto}
+  table{border-collapse:collapse;width:100%;text-align:left;font-size:11px}
+  th{color:#8b9281;font-size:9px;font-weight:400;padding:12px 14px;background:#f8f9f5;border-bottom:1px solid var(--line);white-space:nowrap;cursor:pointer}
+  td{padding:16px 14px;border-bottom:1px solid #eff0e9}
+  td strong{font-size:12px;font-weight:500}
+  td small{display:block;color:#959b8b;font-size:8px;margin-top:6px}
+  tbody tr:hover{background:#fafbf7}
+  .badge{display:inline-flex;align-items:center;justify-content:center;min-width:32px;padding:4px 9px;border-radius:4px;font-size:11px;line-height:1.4}
+  .grade-Aplus{background:#dce8c7;color:#405f27}
+  .grade-A{background:#edf1df;color:#6b793b}
+  .grade-B{background:#f1e9d7;color:#8c7548}
+  .grade-C{background:#eceee8;color:#838a79}
+  .empty{text-align:center;color:#89917e;padding:45px 12px;font-size:12px}
+  .profile-fields>div{display:grid;grid-template-columns:125px 1fr;padding:12px 0;border-bottom:1px solid #eff0e9;gap:15px;font-size:12px}
+  .profile-fields dt{color:#8b937f;margin:0}
+  .profile-fields dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7}
+  .assistant-panel{background:#edf1e4;padding:20px;border-radius:6px}
+  .assistant-panel p,.assistant-panel li{font-size:12px;line-height:1.9}
+  .assistant-panel ol{padding-left:20px;margin:8px 0}
+  .assistant-panel li{margin-bottom:10px}
+  .modal-bg{position:fixed;inset:0;background:rgba(37,61,53,.45);display:flex;align-items:center;justify-content:center;padding:20px;z-index:50}
+  .modal{background:var(--paper);border-radius:10px;max-width:720px;width:100%;max-height:90vh;overflow:auto;padding:30px}
+  .modal h2{margin-bottom:18px}
+  .close-x{float:right;background:none;border:0;font-size:22px;line-height:1}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .settings-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:18px}
+  .qr-slot{border:1px solid var(--line);border-radius:6px;padding:14px;text-align:center}
+  .qr-slot img{width:120px;height:120px;object-fit:contain;margin:8px auto;display:block;background:#fff}
+  .qr-slot small{font-size:10px;color:var(--muted)}
+  .login-box{max-width:360px;margin:120px auto;text-align:center}
+  .login-box input{width:100%;padding:12px;font-size:14px;border:1px solid #dce0d6;border-radius:5px;margin:14px 0}
+  .standalone{max-width:760px;margin:60px auto;padding:30px;line-height:1.9}
+  .standalone h1{font-size:26px;margin-bottom:20px}
+  @media (max-width:1100px){.sidebar{width:190px;padding:28px 16px}.admin-main{margin-left:190px;width:calc(100% - 190px)}.admin-content{padding:25px}.metric-grid{gap:10px}.metric{padding:17px}.settings-grid{grid-template-columns:1fr 1fr}}
+  @media (max-width:700px){
+    .desktop-only{display:none}
+    .public-header{height:54px;padding:0 14px}
+    .public-header .wordmark{font-size:21px}
+    .header-right{gap:10px}
+    .public-main{padding:20px 14px 44px}
+    .intro{margin-bottom:16px}
+    .question-card{padding:18px 15px}
+    .question-card h2{font-size:21px}
+    .question-card>p{font-size:11px}
+    .type-grid{grid-template-columns:1fr;gap:10px;margin:14px 0}
+    .type-choice{flex-direction:row;justify-content:flex-start;gap:14px;min-height:0;padding:15px 16px;font-size:14px}
+    .type-choice .t-emoji{font-size:24px}
+    .service-grid{grid-template-columns:1fr}
+    .public-footer{font-size:7px;gap:8px;padding:16px 14px}
+    .public-footer span:nth-child(2){display:none}
+    .admin-shell{display:block}
+    .sidebar{position:static;width:100%;padding:18px 20px;display:block;border-right:0}
+    .sidebar .wordmark{font-size:28px;margin:0}
+    .sidebar nav{flex-direction:row;overflow:auto;margin-top:18px;gap:4px}
+    .sidebar nav a{padding:8px;font-size:10px;white-space:nowrap;gap:6px}
+    .sidebar-bottom{display:none}
+    .admin-main{margin:0;width:100%}
+    .admin-top{height:50px;padding:0 20px}
+    .admin-content{padding:25px 18px}
+    .page-heading{align-items:flex-start;flex-direction:column;gap:15px}
+    .page-heading h1{font-size:25px}
+    .metric-grid{grid-template-columns:1fr 1fr;gap:12px}
+    .metric{min-height:135px}
+    .metric strong{font-size:36px}
+    .panel{padding:20px 16px}
+    .filters input,.filters select{width:100%}
+    .filters{grid-template-columns:1fr 1fr}
+    .filters>input{grid-column:1 / -1}
+    .profile-fields>div{grid-template-columns:95px 1fr;font-size:11px}
+    .settings-grid{grid-template-columns:1fr 1fr;gap:15px}
+    .row{grid-template-columns:1fr}
+    .form-actions .button{padding:12px;min-width:0;flex:1}
+  }
+  @media (max-width:380px){
+    .type-choice{font-size:13px}
+    .service-grid{grid-template-columns:1fr}
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+/* ============================ 数据定义 ============================ */
+const OPTIONS = {
+  project_type:{restaurant:["餐饮空间","Restauración"],residential:["住宅空间","Residencial"],commercial:["商业空间","Comercial"]},
+  stage:{ready:["已有场地，准备开始","Tengo local, listo para empezar"],renovation:["已有场地，准备翻新","Tengo espacio para reformar"],searching:["正在寻找场地","Buscando un espacio"],planning:["初步规划","Planificación inicial"],exploring:["只是了解","Solo estoy explorando"]},
+  timeline:{month:["1个月内","En menos de 1 mes"],quarter:["1–3个月","En 1–3 meses"],half:["3–6个月","En 3–6 meses"],later:["6个月以后","En más de 6 meses"],unknown:["未确定","Por definir"]},
+  services:{full:["整体设计","Diseño integral"],architecture:["建筑设计","Arquitectura"],interior:["室内设计","Interiorismo"],brand:["品牌设计","Diseño de marca"],consulting:["其他咨询","Otra consultoría"]},
+  location:{madrid:["马德里及马德里自治区","Madrid y Comunidad de Madrid"],spain:["西班牙其他城市","Otra ciudad de España"],other:["其他国家 / 未确定","Otro país / Por definir"]},
+  channel:{wechat:["微信","WeChat"],email:["电子邮件","Correo electrónico"],phone:["电话","Teléfono"],whatsapp:["WhatsApp","WhatsApp"]},
+  status:{new:["待首次跟进","Pendiente de contacto"],contacted:["已联系","Contactado"],meeting:["已预约会议","Reunión concertada"],quoted:["已发送报价","Presupuesto enviado"],won:["已签约","Contratado"],lost:["已关闭","Cerrado"]},
+};
+const STAFF = ["Luna","Dan","Jenni"];
+const RULES = {
+  stage:{ready:40,renovation:35,searching:20,planning:10,exploring:0},
+  timeline:{month:30,quarter:25,half:15,later:5,unknown:0},
+  services:{full:20,architecture:15,interior:15,brand:10,consulting:5},
+  location:{madrid:10,spain:5,other:0},
+  thresholds:{"A+":80,A:60,B:30},
+};
+const T = {
+  zh:{
+    introEyebrow:"MADRID · 11—13 NOV 2026",
+    introH1a:"从一次相遇，",introH1b:"到一个",introH1c:"好空间。",
+    introP:"告诉我们你的想法。让建筑、室内与品牌设计，为你的下一步创造更多可能。",
+    introBottomL:"问卷 · 约 1 分钟",introBottomR:"中文 / Español",
+    formEyebrow:"LET’S TALK ABOUT YOUR PROJECT",
+    formTitle:"告诉我们你的项目",
+    formSub:"几个简短问题，约 1 分钟即可完成。所有信息仅用于本次项目沟通。",
+    preview:"配置预览：在后台设置里上传微信二维码后，提交完成页将显示对应联系人二维码。",
+    sec1:"项目概况",sec2:"进展与需求",sec3:"联系方式",
+    area:"项目面积",location:"项目位置",city:"城市 / 区域（选填）",detailRest:"餐饮业态（选填）",detailRes:"住宅用途（选填）",detailCom:"商业业态（选填）",
+    detailRestPh:"餐厅、咖啡馆、酒吧…",detailResPh:"自住、出租、度假…",detailComPh:"零售、办公、酒店…",
+    stage:"当前项目阶段",timeline:"预计启动时间",services:"需要哪些设计服务？（可多选）",
+    name:"你的姓名",channel:"首选联系渠道",contact:"微信号 / 邮箱 / 含国家代码的电话号码",notes:"补充说明（选填）",
+    consentContact:(c)=>`我已阅读隐私告知，并同意 ${c} 使用以上资料联系我讨论本项目。`,
+    consentMarketing:"我愿意接收工作室资讯及活动消息。（可选，可随时撤回）",
+    submit:"提交项目",saving:"正在保存…",back:"上一步",next:"继续",
+    successEyebrow:"NICE TO MEET YOU",successTitle:"期待一起创造。",
+    successP:"你的项目资料已安全保存。联系时请提供客户编号。",
+    owner:(o)=>`项目联系人：${o}`,studio:"LYD9 STUDIO",
+    qrMissing:"微信二维码暂未配置。我们将通过你选择的渠道联系。",
+    saveHint:"请保存此页面或记下编号。",
+    foot:"你的想法，只与你的项目团队分享。",
+    privacy:"隐私告知",footerPrivacy:"隐私与数据",
+    admin:"团队登录",requiredHint:"请填写带 * 的必填项。",
+  },
+  es:{
+    introEyebrow:"MADRID · 11—13 NOV 2026",
+    introH1a:"Un encuentro.",introH1b:"",introH1c:" Un espacio extraordinario.",
+    introP:"Cuéntenos su idea. Arquitectura, interiores y marca para dar forma a su próximo proyecto.",
+    introBottomL:"CUESTIONARIO · ≈ 1 MIN",introBottomR:"中文 / Español",
+    formEyebrow:"HABLEMOS DE SU PROYECTO",
+    formTitle:"Cuéntenos su proyecto",
+    formSub:"Unas preguntas breves, unos 60 segundos. Solo para este proyecto.",
+    preview:"Vista de configuración: al subir los códigos QR en ajustes, la pantalla final mostrará el QR del contacto.",
+    sec1:"Proyecto",sec2:"Fase y necesidades",sec3:"Contacto",
+    area:"Superficie",location:"Ubicación",city:"Ciudad / Zona (opcional)",detailRest:"Concepto gastronómico (opcional)",detailRes:"Uso de la vivienda (opcional)",detailCom:"Tipo de negocio (opcional)",
+    detailRestPh:"Restaurante, cafetería, bar…",detailResPh:"Vivienda habitual, alquiler, vacaciones…",detailComPh:"Tienda, oficina, hotel…",
+    stage:"Fase actual",timeline:"Inicio previsto",services:"¿Qué servicios necesita? (selección múltiple)",
+    name:"Nombre",channel:"Canal preferido",contact:"WeChat / Correo / Teléfono con prefijo",notes:"Comentarios (opcional)",
+    consentContact:(c)=>`He leído el aviso de privacidad y autorizo a ${c} a contactarme sobre este proyecto.`,
+    consentMarketing:"Deseo recibir novedades y eventos del estudio. (Opcional, revocable)",
+    submit:"Enviar proyecto",saving:"Guardando…",back:"Atrás",next:"Continuar",
+    successEyebrow:"NICE TO MEET YOU",successTitle:"Creemos algo juntos.",
+    successP:"Su proyecto se ha guardado. Indique esta referencia al contactarnos.",
+    owner:(o)=>`Su contacto: ${o}`,studio:"LYD9 STUDIO",
+    qrMissing:"El QR aún no está disponible. Le contactaremos por su canal preferido.",
+    saveHint:"Guarde esta pantalla o anote su referencia.",
+    foot:"Su idea, compartida solo con su equipo de proyecto.",
+    privacy:"Aviso de privacidad",footerPrivacy:"Privacidad y datos",
+    admin:"Acceso del equipo",requiredHint:"Complete los campos obligatorios *.",
+  }
+};
+const CONTROLLER = "LYD9 STUDIO";
+
+/* ============================ 存储 ============================ */
+const K_LEADS="lyd9_leads", K_SETTINGS="lyd9_settings", K_COUNTER="lyd9_counter", K_LANG="lyd9_lang";
+function loadJSON(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
+function saveJSON(k,v){localStorage.setItem(k,JSON.stringify(v));}
+let LEADS = loadJSON(K_LEADS,[]);
+let SETTINGS = Object.assign({passcode:"lyd9",jenniCap:5,endpoint:"",qr:{studio:"",Luna:"",Dan:"",Jenni:""}}, loadJSON(K_SETTINGS,{}));
+if(!SETTINGS.qr) SETTINGS.qr={studio:"",Luna:"",Dan:"",Jenni:""};
+let COUNTER = (()=>{try{return parseInt(localStorage.getItem(K_COUNTER)||"0",10)||0;}catch(e){return 0;}})();
+let LANG = (()=>{try{return localStorage.getItem(K_LANG)==="es"?"es":"zh";}catch(e){return "zh";}})();
+function persist(){try{saveJSON(K_LEADS,LEADS);saveJSON(K_SETTINGS,SETTINGS);localStorage.setItem(K_COUNTER,String(COUNTER));localStorage.setItem(K_LANG,LANG);}catch(e){console.warn("storage unavailable",e);}}
+
+/* ============================ 逻辑 ============================ */
+function label(group,key){const a=OPTIONS[group][key];return a?a[LANG==="zh"?0:1]:key;}
+function score(a){
+  const s=RULES.stage[a.stage]+RULES.timeline[a.timeline]+Math.max(0,...a.services.map(x=>RULES.services[x]))+RULES.location[a.location];
+  const g=s>=RULES.thresholds["A+"]?"A+":s>=RULES.thresholds.A?"A":s>=RULES.thresholds.B?"B":"C";
+  return {score:s,grade:g};
+}
+function pendingOf(name){return LEADS.filter(l=>l.owner===name&&l.status==="new").length;}
+function leastLoaded(names){let best=names[0],bn=Infinity;for(const n of names){const c=pendingOf(n);if(c<bn){bn=c;best=n;}}return best;}
+function assign(type,grade){
+  if(grade==="B"||grade==="C") return null; // 公共池
+  if(type==="residential"){
+    if(pendingOf("Jenni")<SETTINGS.jenniCap) return "Jenni";
+    return leastLoaded(["Luna","Dan"]);
+  }
+  return leastLoaded(["Luna","Dan"]);
+}
+function nextNumber(){COUNTER+=1;return "LYD9-"+String(COUNTER).padStart(3,"0");}
+function assistance(a){
+  const zh=LANG==="zh";
+  const q=zh?[
+    a.stage==="searching"?"场地筛选有哪些位置与租赁条件？":"能否提供场地平面图、照片及现有资料？",
+    "设计与施工的预算范围分别是多少？",
+    a.project_type==="restaurant"?"餐饮业态、座位数和厨房需求是什么？":a.project_type==="residential"?"居住人数、生活习惯与优先改善的问题是什么？":"品牌定位、目标客群和使用流程是什么？",
+    "谁参与决策，最终由谁确认方案？",
+    "期望交付或开业日期，以及不可变的时间节点是什么？"
+  ]:[
+    a.stage==="searching"?"¿Qué ubicación y condiciones de alquiler necesita?":"¿Puede compartir planos, fotos y documentación del espacio?",
+    "¿Qué presupuesto tiene para diseño y obra?",
+    a.project_type==="restaurant"?"¿Qué concepto, aforo y necesidades de cocina tiene?":a.project_type==="residential"?"¿Cuántas personas vivirán allí y qué necesitan mejorar?":"¿Cuál es el posicionamiento, público y flujo de uso?",
+    "¿Quién participa y quién aprueba las decisiones?",
+    "¿Cuál es la fecha objetivo y qué hitos son inamovibles?"
+  ];
+  const next=zh?(a.timeline==="month"?"尽快安排20分钟需求沟通，确认场地与时间节点。":"通过首选渠道联系，确认预算与场地资料后安排需求会议。"):
+    (a.timeline==="month"?"Concertar pronto una llamada de 20 minutos para revisar el espacio y los plazos.":"Contactar por el canal preferido y confirmar presupuesto y documentación antes de una reunión.");
+  return {summary:`${label("project_type",a.project_type)} · ${label("stage",a.stage)} · ${label("timeline",a.timeline)} · ${label("location",a.location)} · ${a.services.map(s=>label("services",s)).join(" / ")}`,questions:q,next};
+}
+
+/* ============================ 工具 ============================ */
+const $=s=>document.querySelector(s);
+function esc(s){return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function csvCell(v){let s=String(v??"");if(/^[\s]*[=+\-@\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';}
+function toCSV(rows){return "﻿"+rows.map(r=>r.map(csvCell).join(",")).join("\r\n");}
+function download(name,content,type){const b=new Blob([content],{type:type||"text/plain;charset=utf-8"});const u=URL.createObjectURL(b);const a=document.createElement("a");a.href=u;a.download=name;a.click();URL.revokeObjectURL(u);}
+
+/* ============================ 视图：问卷 ============================ */
+function viewForm(){
+  const t=T[LANG];
+  const opt=(g)=>Object.keys(OPTIONS[g]).map(k=>`<option value="${k}">${esc(label(g,k))}</option>`).join("");
+  const areaOpt=[["under100","< 100 m²"],["100to300","100–300 m²"],["300to1000","300–1.000 m²"],["over1000","> 1.000 m²"],["unknown",t.city.includes("未")?"未确定":"Por definir"]]
+    .map(([v,x])=>`<option value="${v}">${x}</option>`).join("");
+  const detailLabel = type==="restaurant"?t.detailRest:type==="residential"?t.detailRes:t.detailCom;
+  const detailPh = type==="restaurant"?t.detailRestPh:type==="residential"?t.detailResPh:t.detailComPh;
+  const typeIcons={restaurant:"🍽",residential:"🏠",commercial:"🏢"};
+  const app=$("#app");
+  app.innerHTML=`
+  <div class="public-shell">
+    <header class="public-header">
+      <span class="wordmark">LYD9<span>STUDIO</span></span>
+      <div class="header-right">
+        <span class="desktop-only tiny">ARCHITECTURE & INTERIORS</span>
+        <span class="language">${["zh","es"].map(l=>`<button data-lang="${l}" aria-pressed="${LANG===l}">${l==="zh"?"中文":"ES"}</button>`).join("<span>·</span>")}</span>
+        <a class="icon-link" href="#admin" title="${t.admin}">↗</a>
+      </div>
+    </header>
+    <main class="public-main">
+      <aside class="intro">
+        <div class="eyebrow"><span class="dot"></span> ${t.introEyebrow}</div>
+        <h1>${t.introH1a}${t.introH1b||""}<span>${t.introH1c}</span></h1>
+        <p>${t.introP}</p>
+        <div class="intro-meta"><span><span class="dot"></span>${t.introBottomL}</span><span>${t.introBottomR}</span></div>
+      </aside>
+      <section class="question-card">
+        <div class="form-top"><span class="eyebrow">${t.formEyebrow}</span></div>
+        <h2>${t.formTitle}</h2>
+        <p class="muted">${t.formSub}</p>
+        <div class="notice">${t.preview}</div>
+        <form id="qform" novalidate>
+          <fieldset class="form-section">
+            <h3>${t.sec1}</h3>
+            <div class="type-grid" id="typeGrid">
+              ${Object.keys(OPTIONS.project_type).map(k=>`<button type="button" class="type-choice ${type===k?"selected":""}" data-type="${k}" aria-pressed="${type===k}"><span class="t-emoji">${typeIcons[k]}</span><span>${esc(label("project_type",k))}</span>${type===k?'<span class="choice-check">✓</span>':""}</button>`).join("")}
+            </div>
+            <label class="field">${t.area}<select name="area" required><option value="" disabled selected>${esc(LANG==="zh"?"请选择":"Seleccionar")}</option>${areaOpt}</select></label>
+            <label class="field">${t.location}<select name="location" required><option value="" disabled selected>${esc(LANG==="zh"?"请选择":"Seleccionar")}</option>${opt("location")}</select></label>
+            <label class="field">${t.city}<input name="location_detail" maxlength="150" placeholder="${esc(LANG==="zh"?"例如：Madrid, Chamberí":"Ej. Madrid, Chamberí")}"></label>
+            <label class="field">${esc(detailLabel)}<input name="project_detail" maxlength="150" placeholder="${esc(detailPh)}"></label>
+          </fieldset>
+          <fieldset class="form-section">
+            <h3>${t.sec2}</h3>
+            <label class="field">${t.stage}<select name="stage" required><option value="" disabled selected>${esc(LANG==="zh"?"请选择":"Seleccionar")}</option>${opt("stage")}</select></label>
+            <label class="field">${t.timeline}<select name="timeline" required><option value="" disabled selected>${esc(LANG==="zh"?"请选择":"Seleccionar")}</option>${opt("timeline")}</select></label>
+            <div class="field">${t.services}
+              <div class="service-grid" id="svcGrid">
+                ${Object.keys(OPTIONS.services).map(k=>`<button type="button" class="service-choice ${services.includes(k)?"selected":""}" data-svc="${k}" aria-pressed="${services.includes(k)}">${esc(label("services",k))}${services.includes(k)?" ✓":""}</button>`).join("")}
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="form-section">
+            <h3>${t.sec3}</h3>
+            <label class="field">${t.name}<input name="name" maxlength="100" required></label>
+            <label class="field">${t.channel}<select name="channel" required><option value="" disabled selected>${esc(LANG==="zh"?"请选择":"Seleccionar")}</option>${opt("channel")}</select></label>
+            <label class="field">${esc(t.contact)}<input name="contact" maxlength="200" required></label>
+            <label class="field">${esc(t.notes)}<textarea name="notes" maxlength="2000" rows="2"></textarea></label>
+            <label class="check-label"><input type="checkbox" name="consent_contact" required><span>${esc(t.consentContact(CONTROLLER))} <a href="#privacy" target="_blank">${t.privacy} ↗</a></span></label>
+            <label class="check-label"><input type="checkbox" name="consent_marketing"><span>${esc(t.consentMarketing)}</span></label>
+          </fieldset>
+          <input name="website" class="honeypot" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <p class="error" id="err" style="display:none"></p>
+          <div class="form-actions"><button class="button primary full" id="submitBtn" type="submit">${t.submit} →</button></div>
+          <p class="form-foot">${t.foot}</p>
+        </form>
+      </section>
+    </main>
+    <footer class="public-footer"><span>© 2026 LYD9 STUDIO</span><span>MADRID, ESPAÑA</span><a href="#privacy">${t.footerPrivacy} ↗</a></footer>
+  </div>`;
+  // 语言切换
+  app.querySelectorAll(".language button").forEach(b=>b.onclick=()=>{LANG=b.dataset.lang;persist();render();});
+  // 类型选择
+  app.querySelectorAll("#typeGrid .type-choice").forEach(b=>b.onclick=()=>{type=b.dataset.type;render();});
+  // 服务多选
+  app.querySelectorAll("#svcGrid .service-choice").forEach(b=>b.onclick=()=>{
+    const k=b.dataset.svc;
+    services=services.includes(k)?services.filter(x=>x!==k):[...services,k];
+    render();
+  });
+  // 提交
+  $("#qform").onsubmit=onSubmit;
+}
+let type="restaurant", services=["full"];
+function onSubmit(e){
+  e.preventDefault();
+  const t=T[LANG];
+  const f=e.target;
+  if(f.website.value) return; // 机器人陷阱
+  // 原生校验
+  if(!f.checkValidity()){ $("#err").style.display="block";$("#err").textContent=t.requiredHint;return; }
+  const fd=new FormData(f);
+  const answers={
+    project_type:type,
+    stage:fd.get("stage"),timeline:fd.get("timeline"),area:fd.get("area"),location:fd.get("location"),
+    location_detail:(fd.get("location_detail")||"").trim(),
+    services:services.slice(),
+    project_detail:(fd.get("project_detail")||"").trim(),
+    name:(fd.get("name")||"").trim(),channel:fd.get("channel"),
+    contact:(fd.get("contact")||"").trim(),notes:(fd.get("notes")||"").trim(),
+    consent_contact:fd.get("consent_contact")!==null,
+    consent_marketing:fd.get("consent_marketing")!==null,
+  };
+  const {score:sc,grade:gr}=score(answers);
+  const owner=assign(answers.project_type,gr);
+  const number=nextNumber();
+  const lead={
+    number,owner,grade:gr,score:sc,status:"new",wechat_status:"not_added",
+    submitted_at:new Date().toISOString(),manual:false,notes_history:[],
+    next_action:"",next_date:"",...answers
+  };
+  LEADS.push(lead);persist();
+  // 可选远程保存
+  if(SETTINGS.endpoint){
+    fetch(SETTINGS.endpoint,{method:"POST",mode:"no-cors",headers:{"Content-Type":"application/json"},body:JSON.stringify(lead)}).catch(()=>{});
+  }
+  viewThanks(lead);
+}
+
+/* ============================ 视图：感谢页 ============================ */
+function viewThanks(lead){
+  const t=T[LANG];
+  const ownerName=lead.owner||t.studio;
+  const qr=lead.owner?SETTINGS.qr[lead.owner]:SETTINGS.qr.studio;
+  const app=$("#app");
+  app.innerHTML=`
+  <div class="public-shell"><main class="public-main" style="min-height:72vh;display:flex;align-items:center">
+    <section class="question-card" style="width:100%">
+      <div class="success">
+        <div class="success-icon">✓</div>
+        <div class="eyebrow">${t.successEyebrow}</div>
+        <h2>${t.successTitle}</h2>
+        <p>${t.successP}</p>
+        <div class="receipt">${lead.number}</div>
+        <p>${lead.owner?esc(t.owner(lead.owner)):esc(t.studio)}</p>
+        ${qr?`<img class="qr" src="${esc(qr)}" alt="WeChat QR">`:`<div class="notice">${esc(t.qrMissing)}</div>`}
+        <p class="muted">${t.saveHint}</p>
+        <p><a class="button secondary" href="#" onclick="location.reload()">↺</a></p>
+      </div>
+    </section>
+  </main></div>`;
+}
+
+/* ============================ 视图：后台 ============================ */
+var adminTab="dashboard"; var adminFilter={q:"",grade:"",owner:""};
+function viewAdmin(){
+  const t=T[LANG];
+  if(!adminAuthed){viewLogin();return;}
+  const app=$("#app");
+  const counts={total:LEADS.length,"A+":0,A:0,B:0,C:0};
+  const perStaff={Luna:0,Dan:0,Jenni:0};let pending=0,meeting=0,quoted=0,won=0;
+  LEADS.forEach(l=>{counts[l.grade]++;if(l.owner&&perStaff[l.owner]!=null)perStaff[l.owner]++;if(l.status==="new")pending++;if(l.status==="meeting")meeting++;if(l.status==="quoted")quoted++;if(l.status==="won")won++;});
+  app.innerHTML=`
+  <div class="admin-shell">
+    <aside class="sidebar">
+      <span class="wordmark">LYD9<span>STUDIO</span></span>
+      <nav>
+        <a href="#admin" class="${adminTab==="dashboard"?"active":""}">📊 ${LANG==="zh"?"概览":"Resumen"}</a>
+        <a href="#admin" class="${adminTab==="leads"?"active":""}" onclick="adminTab='leads';render()">👥 ${LANG==="zh"?"客户列表":"Clientes"}</a>
+        <a href="#admin" class="${adminTab==="settings"?"active":""}" onclick="adminTab='settings';render()">⚙️ ${LANG==="zh"?"设置":"Ajustes"}</a>
+      </nav>
+      <div class="sidebar-bottom"><button class="button secondary full" onclick="adminLogout()">${LANG==="zh"?"退出登录":"Salir"}</button></div>
+    </aside>
+    <div class="admin-main">
+      <div class="admin-top"><span>LYD9 LEAD MANAGER</span><span>${LANG==="zh"?"展会客户管理":"Gestión de leads"}</span></div>
+      <div class="admin-content">${adminTab==="dashboard"?adminDashboard(counts,perStaff,pending,meeting,quoted,won):adminTab==="leads"?adminLeads():adminSettings()}</div>
+    </div>
+  </div>`;
+}
+function adminDashboard(c,ps,p,m,q,w){
+  const t=T[LANG];
+  return `<div class="page-heading"><div><div class="eyebrow">DASHBOARD</div><h1>${t.introBottomL?esc(LANG==="zh"?"展会概览":"Resumen feria"):""}</h1></div>
+    <button class="button primary" onclick="download('leads.csv',exportCSV(allLeads()),'text/csv;charset=utf-8')">⬇ CSV</button></div>
+  <div class="metric-grid">
+    <div class="metric metric-dark"><span>${LANG==="zh"?"客户总数":"Total clientes"}</span><strong>${c.total}</strong><small>LYD9</small></div>
+    <div class="metric"><span>A+ / A</span><strong>${c["A+"]+c.A}</strong><small>B:${c.B} · C:${c.C}</small></div>
+    <div class="metric"><span>${LANG==="zh"?"待首次跟进":"Pendiente"}</span><strong>${p}</strong><small>${LANG==="zh"?"会议":"Reunión"}:${m}</small></div>
+    <div class="metric"><span>${LANG==="zh"?"已报价/签约":"Presup./Contrato"}</span><strong>${q}/${w}</strong><small>${LANG==="zh"?"已联系后":"después"}</small></div>
+  </div>
+  <div class="panel"><h2>${LANG==="zh"?"各负责人客户数":"Clientes por responsable"}</h2>
+    ${STAFF.map(s=>`<div class="team-row"><strong>${s}</strong><div class="team-track"><i style="width:${Math.min(100,ps[s]*20)}%"></i></div><span>${ps[s]}</span></div>`).join("")}
+  </div>`;
+}
+function filteredLeads(){
+  return LEADS.filter(l=>(!adminFilter.q||(l.name+""+l.number+""+l.contact).toLowerCase().includes(adminFilter.q.toLowerCase()))&&(!adminFilter.grade||l.grade===adminFilter.grade)&&(!adminFilter.owner||l.owner===adminFilter.owner));
+}
+function adminLeads(){
+  const t=T[LANG];
+  const rows=filteredLeads();
+  const gradeOpts=['<option value="">'+(LANG==="zh"?"全部等级":"Todos")+'</option>'].concat(["A+","A","B","C"].map(g=>`<option value="${g}" ${adminFilter.grade===g?"selected":""}>${g}</option>`)).join("");
+  const ownerOpts=['<option value="">'+(LANG==="zh"?"全部负责人":"Todos")+'</option>'].concat(STAFF.map(s=>`<option value="${s}" ${adminFilter.owner===s?"selected":""}>${s}</option>`)).join("");
+  const body=rows.length?rows.map(l=>`<tr><td><strong>${esc(l.number)}</strong></td><td><strong>${esc(l.name)}</strong><small>${esc(label("project_type",l.project_type))}</small></td><td><span class="badge grade-${l.grade==="A+"?"Aplus":l.grade}">${l.grade}</span></td><td>${l.score}</td><td>${esc(l.owner||"—")}</td><td>${statusLabel(l.status)}</td><td><button class="button secondary" onclick="openLead('${esc(l.number)}')">${LANG==="zh"?"查看":"Ver"}</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">${LANG==="zh"?"还没有客户。去展会现场让客户扫码填写吧。":"Aún no hay clientes."}</td></tr>`;
+  return `<div class="page-heading"><div><div class="eyebrow">LEADS</div><h1>${LANG==="zh"?"客户列表":"Clientes"}</h1><p>${rows.length} / ${LEADS.length}</p></div>
+    <button class="button primary" onclick="download('leads.csv',exportCSV(filteredLeads()),'text/csv;charset=utf-8')">⬇ CSV</button></div>
+  <div class="filters">
+    <input id="fq" placeholder="${LANG==="zh"?"搜索编号/姓名/联系方式":"Buscar nº/nombre/contacto"}" value="${esc(adminFilter.q)}">
+    <select id="fg">${gradeOpts}</select><select id="fo">${ownerOpts}</select>
+  </div>
+  <div class="panel"><div class="table-wrap"><table><thead><tr><th>${LANG==="zh"?"编号":"Ref"}</th><th>${LANG==="zh"?"姓名":"Nombre"}</th><th>${LANG==="zh"?"等级":"Nivel"}</th><th>${LANG==="zh"?"评分":"Puntos"}</th><th>${LANG==="zh"?"负责人":"Responsable"}</th><th>${LANG==="zh"?"状态":"Estado"}</th><th></th></tr></thead><tbody>${body}</tbody></table></div></div>`;
+}
+function statusLabel(s){return OPTIONS.status[s]?OPTIONS.status[s][LANG==="zh"?0:1]:s;}
+function adminSettings(){
+  const t=T[LANG];
+  const slot=(key,name)=>`<div class="qr-slot"><strong>${name}</strong>${SETTINGS.qr[key]?`<img src="${esc(SETTINGS.qr[key])}" alt="${name}">`:`<div class="qr-placeholder" style="height:120px;background:var(--paper);display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;margin:8px 0">${LANG==="zh"?"未上传":"Sin subir"}</div>`}<input type="file" accept="image/*" onchange="uploadQR('${key}',this)"></div>`;
+  const entryURL=location.origin+location.pathname; // 问卷首页（无 hash），扫码即填
+  const qrImg=`https://api.qrserver.com/v1/create-qr-code/?size=220x220&margin=8&data=${encodeURIComponent(entryURL)}`;
+  return `<div class="page-heading"><div><div class="eyebrow">SETTINGS</div><h1>${LANG==="zh"?"设置":"Ajustes"}</h1></div></div>
+  <div class="panel"><h2>${LANG==="zh"?"展会入口二维码":"QR de acceso a la feria"}</h2>
+    <p class="muted">${LANG==="zh"?"把这张图打印或展示在展位，客户扫码即可直接进入问卷填写。":"Imprima o muestre este código en su stand; los clientes acceden al cuestionario al escanearlo."}</p>
+    <div class="qr-slot" style="max-width:260px"><img src="${qrImg}" alt="entry qr" onerror="this.outerHTML='<div style=\\'padding:14px 0;color:var(--muted);font-size:11px\\'>'+'${esc(entryURL)}'+'</div>'"><small>${esc(entryURL)}</small></div>
+    <button class="button secondary" style="margin-top:12px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(entryURL)}')">${LANG==="zh"?"复制链接":"Copiar enlace"}</button>
+  </div>
+  <div class="panel"><h2>${LANG==="zh"?"微信二维码":"Códigos QR de WeChat"}</h2>
+    <p class="muted">${LANG==="zh"?"上传后，客户提交完成页会显示对应联系人二维码；B/C 客户显示工作室公共二维码。":"Suba los QR; el cliente verá el de su contacto. B/C ven el QR público."}</p>
+    <div class="settings-grid">${slot("studio",t.studio)}${slot("Luna","Luna")}${slot("Dan","Dan")}${slot("Jenni","Jenni")}</div>
+  </div>
+  <div class="panel"><h2>${LANG==="zh"?"分配规则":"Reglas de asignación"}</h2>
+    <label class="field">${LANG==="zh"?"Jenni 待首次跟进上限（超过则溢出给 Luna/Dan）":"Tope de Jenni (si se supera, desborda a Luna/Dan)"}<input id="jcap" type="number" min="0" value="${SETTINGS.jenniCap}" onchange="SETTINGS.jenniCap=parseInt(this.value)||0;persist()"></label>
+    <label class="field">${LANG==="zh"?"远程保存地址（可选，多设备汇总）":"URL de guardado remoto (opcional)"}<input id="endpoint" placeholder="https://script.google.com/... " value="${esc(SETTINGS.endpoint)}" onchange="SETTINGS.endpoint=this.value.trim();persist()"></label>
+    <p class="muted">${LANG==="zh"?"默认数据存在本机浏览器，可一键导出 CSV。填远程地址后每次提交会额外 POST 一份 JSON。":"Por defecto se guarda en este navegador. Con URL remota, cada envío hace POST."}</p>
+  </div>
+  <div class="panel"><h2>${LANG==="zh"?"登录密码":"Contraseña"}</h2>
+    <label class="field">${LANG==="zh"?"后台访问密码":"Contraseña del panel"}<input id="pw" type="text" value="${esc(SETTINGS.passcode)}" onchange="SETTINGS.passcode=this.value;persist()"></label>
+    <p class="muted">${LANG==="zh"?"注意：这是轻量保护，不是高安全方案。":"Nota: protección ligera, no de alta seguridad."}</p>
+  </div>`;
+}
+function uploadQR(key,input){
+  const file=input.files&&input.files[0];if(!file)return;
+  const r=new FileReader();r.onload=()=>{SETTINGS.qr[key]=r.result;persist();render();};r.readAsDataURL(file);
+}
+function openLead(number){
+  const l=LEADS.find(x=>x.number===number);if(!l)return;
+  const t=T[LANG];
+  const a=assistance(l);
+  const statusOpts=Object.keys(OPTIONS.status).map(k=>`<option value="${k}" ${l.status===k?"selected":""}>${label("status",k)}</option>`).join("");
+  const ownerOpts=['<option value="">'+(LANG==="zh"?"公共池":"Pool")+'</option>'].concat(STAFF.map(s=>`<option value="${s}" ${l.owner===s?"selected":""}>${s}</option>`)).join("");
+  const gradeOpts=["A+","A","B","C"].map(g=>`<option value="${g}" ${l.grade===g?"selected":""}>${g}</option>`).join("");
+  const bg=document.createElement("div");bg.className="modal-bg";
+  bg.innerHTML=`<div class="modal"><button class="close-x" onclick="this.closest('.modal-bg').remove()">×</button>
+    <h2>${esc(l.number)} · ${esc(l.name)}</h2>
+    <div class="row">
+      <div class="profile-fields"><dl>
+        <div><dt>${LANG==="zh"?"项目类型":"Tipo"}</dt><dd>${esc(label("project_type",l.project_type))}</dd></div>
+        <div><dt>${LANG==="zh"?"面积":"Superficie"}</dt><dd>${esc(l.area)}</dd></div>
+        <div><dt>${LANG==="zh"?"位置":"Ubicación"}</dt><dd>${esc(label("location",l.location))}${l.location_detail?" · "+esc(l.location_detail):""}</dd></div>
+        <div><dt>${LANG==="zh"?"阶段":"Fase"}</dt><dd>${esc(label("stage",l.stage))}</dd></div>
+        <div><dt>${LANG==="zh"?"启动":"Inicio"}</dt><dd>${esc(label("timeline",l.timeline))}</dd></div>
+        <div><dt>${LANG==="zh"?"服务":"Servicios"}</dt><dd>${l.services.map(s=>esc(label("services",s))).join(" / ")}</dd></div>
+        <div><dt>${LANG==="zh"?"联系":"Contacto"}</dt><dd>${esc(l.name)} · ${esc(label("channel",l.channel))} · ${esc(l.contact)}</dd></div>
+        <div><dt>${LANG==="zh"?"说明":"Notas"}</dt><dd>${esc(l.notes||"—")}</dd></div>
+      </dl></div>
+      <div><div class="field">${LANG==="zh"?"等级":"Nivel"}<select id="mGrade">${gradeOpts}</select></div>
+        <div class="field">${LANG==="zh"?"负责人":"Responsable"}<select id="mOwner">${ownerOpts}</select></div>
+        <div class="field">${LANG==="zh"?"状态":"Estado"}<select id="mStatus">${statusOpts}</select></div>
+        <div class="field">${LANG==="zh"?"微信状态":"WeChat"}<select id="mWx">${Object.keys(OPTIONS.wechat_status).map(k=>`<option value="${k}" ${l.wechat_status===k?"selected":""}>${label("wechat_status",k)}</option>`).join("")}</select></div>
+        <div class="field">${LANG==="zh"?"下一步":"Siguiente"}<input id="mNext" value="${esc(l.next_action||"")}" maxlength="200"></div>
+        <div class="field">${LANG==="zh"?"下次跟进":"Próximo seguimiento"}<input id="mDate" type="date" value="${esc(l.next_date||"")}"></div>
+        <button class="button primary full" onclick="saveLead('${esc(l.number)}')">${LANG==="zh"?"保存":"Guardar"}</button>
+      </div>
+    </div>
+    <div class="assistant-panel" style="margin-top:20px"><h3>${LANG==="zh"?"沟通辅助":"Asistencia"}</h3>
+      <p><strong>${esc(a.summary)}</strong></p>
+      <p>${LANG==="zh"?"需进一步确认的 5 个问题：":"5 preguntas clave:"}</p><ol>${a.questions.map(q=>`<li>${esc(q)}</li>`).join("")}</ol>
+      <p><strong>${LANG==="zh"?"建议下一步：":"Siguiente paso sugerido:"}</strong>${esc(a.next)}</p>
+    </div>
+  </div>`;
+  document.body.appendChild(bg);
+}
+function saveLead(number){
+  const l=LEADS.find(x=>x.number===number);if(!l)return;
+  const g=$("#mGrade").value,s=$("#mStatus").value,o=$("#mOwner").value||null,wx=$("#mWx").value;
+  const na=$("#mNext").value.trim(),nd=$("#mDate").value;
+  if(g!==l.grade){l.manual=true;l.manual_reason="grade";}
+  l.grade=g;l.status=s;l.owner=o;l.wechat_status=wx;l.next_action=na;l.next_date=nd;
+  persist();render();document.querySelector(".modal-bg")?.remove();
+}
+function exportCSV(list){
+  const head=["编号","姓名","项目类型","面积","位置","城市","阶段","启动","服务","姓名2","渠道","联系方式","说明","等级","评分","负责人","状态","微信","提交时间","营销同意"];
+  const rows=list.map(l=>[l.number,l.name,label("project_type",l.project_type),l.area,label("location",l.location),l.location_detail||"",label("stage",l.stage),label("timeline",l.timeline),l.services.map(s=>label("services",s)).join("/"),l.name,label("channel",l.channel),l.contact,l.notes||"",l.grade,l.score,l.owner||"",label("status",l.status),label("wechat_status",l.wechat_status),l.submitted_at,(l.consent_marketing?"Sí":"No")]);
+  return toCSV([head,...rows]);
+}
+
+/* ============================ 登录 ============================ */
+let adminAuthed=false;
+function viewLogin(){
+  const t=T[LANG];
+  $("#app").innerHTML=`<div class="login-box"><span class="wordmark">LYD9<span>STUDIO</span></span><h2 style="margin-top:24px">${t.admin}</h2><input id="pw" type="password" placeholder="••••"><button class="button primary full" onclick="tryLogin()">${LANG==="zh"?"进入":"Entrar"}</button><p class="muted" style="margin-top:14px">${LANG==="zh"?"默认密码 lyd9，可在设置里修改。":"Clave por defecto lyd9."}</p></div>`;
+}
+function tryLogin(){const v=$("#pw").value;if(v===SETTINGS.passcode){adminAuthed=true;render();}else alert(LANG==="zh"?"密码错误":"Contraseña incorrecta");}
+function adminLogout(){adminAuthed=false;location.hash="#/";render();}
+window.adminLogout=adminLogout;
+
+/* ============================ 隐私页 ============================ */
+function viewPrivacy(){
+  const t=T[LANG];
+  $("#app").innerHTML=`<div class="standalone"><span class="wordmark">LYD9<span>STUDIO</span></span>
+    <h1>${t.privacy}</h1>
+    <p>${LANG==="zh"?"我们（LYD9 STUDIO）仅在您填写本问卷所描述的项目沟通范围内，使用您提供的姓名、联系方式与项目信息。联系授权为必选项；营销资讯为可选项，您可随时撤回。":"LYD9 STUDIO usa sus datos solo para contactarle sobre el proyecto descrito. El consentimiento de contacto es obligatorio; el de marketing es opcional y revocable."}</p>
+    <p>${LANG==="zh"?"我们不会将您的信息用于无关用途，也不会在未经您同意的情况下共享给第三方。":"No usamos sus datos para otros fines ni los compartimos sin su consentimiento."}</p>
+    <p><a class="button secondary" href="#/">← ${LANG==="zh"?"返回问卷":"Volver"}</a></p></div>`;
+}
+
+/* ============================ 路由 ============================ */
+function render(){
+  const h=location.hash;
+  if(h.startsWith("#admin")){viewAdmin();wireAdminFilters();}
+  else if(h.startsWith("#privacy")){viewPrivacy();}
+  else {type=type||"restaurant";services=services.length?services:["full"];viewForm();}
+}
+function wireAdminFilters(){
+  const fq=$("#fq"),fg=$("#fg"),fo=$("#fo");
+  if(fq)fq.oninput=()=>{adminFilter.q=fq.value;const tb=document.querySelector(".table-wrap tbody");if(tb)tb.innerHTML=leadsBody();};
+  if(fg)fg.onchange=()=>{adminFilter.grade=fg.value;const tb=document.querySelector(".table-wrap tbody");if(tb)tb.innerHTML=leadsBody();};
+  if(fo)fo.onchange=()=>{adminFilter.owner=fo.value;const tb=document.querySelector(".table-wrap tbody");if(tb)tb.innerHTML=leadsBody();};
+}
+function leadsBody(){
+  const t=T[LANG];const rows=filteredLeads();
+  return rows.length?rows.map(l=>`<tr><td><strong>${esc(l.number)}</strong></td><td><strong>${esc(l.name)}</strong><small>${esc(label("project_type",l.project_type))}</small></td><td><span class="badge grade-${l.grade==="A+"?"Aplus":l.grade}">${l.grade}</span></td><td>${l.score}</td><td>${esc(l.owner||"—")}</td><td>${statusLabel(l.status)}</td><td><button class="button secondary" onclick="openLead('${esc(l.number)}')">${LANG==="zh"?"查看":"Ver"}</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">${LANG==="zh"?"还没有客户。":"Aún no hay clientes."}</td></tr>`;
+}
+// 暴露全局
+window.render=render;window.openLead=openLead;window.saveLead=saveLead;window.uploadQR=uploadQR;window.tryLogin=tryLogin;window.adminTab="dashboard";window.filteredLeads=filteredLeads;window.allLeads=()=>LEADS;
+window.download=download;window.exportCSV=exportCSV;
+window.addEventListener("hashchange",render);
+render();
+</script>
+</body>
+</html>

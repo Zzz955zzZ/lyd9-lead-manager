@@ -1,0 +1,11 @@
+# Netlify 配置：在 Netlify 控制台 "Import from Git" 选本仓库即可自动部署
+# 此后每次 git push 到 main 都会自动上线（无需构建，单文件静态站）
+[build]
+  publish = "."
+  command = "echo 'static single-file site: no build step needed'"
+
+# 单页应用回退（可选，本问卷非 SPA，通常不需要）
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
