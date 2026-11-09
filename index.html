@@ -617,7 +617,7 @@ function onSubmit(e){
 /* ============================ 中央收集：写入 / 读取 Google 表 ============================ */
 // 把一条客资 POST 到中央表（插入或更新）。地址 = 后台设置 endpoint 或写死的 SHEET_ENDPOINT。
 function syncToSheet(lead, action){
-  const EP=(SETTINGS.endpoint||"").trim()||SHEET_ENDPOINT;
+  const EP=(SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
   if(!EP) return;
   const payload=action?Object.assign({},lead,{_action:action}):lead;
   // text/plain 免 CORS 预检（application/json 在 no-cors 下会被浏览器拦截）
@@ -625,7 +625,7 @@ function syncToSheet(lead, action){
 }
 // 登录后台后从中央表拉取全部客资（带密码），合并本机本地记录，作为汇总视图。
 async function loadCentral(){
-  const EP=(SETTINGS.endpoint||"").trim()||SHEET_ENDPOINT;
+  const EP=(SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
   if(!EP) return false;
   try{
     const url=EP+(EP.indexOf("?")>=0?"&":"?")+"pw="+encodeURIComponent(SETTINGS.passcode||"");
@@ -689,7 +689,7 @@ function viewAdmin(){
       <div class="sidebar-bottom"><button class="button secondary full" onclick="adminLogout()">${LANG==="zh"?"退出登录":"Salir"}</button></div>
     </aside>
     <div class="admin-main">
-      <div class="admin-top"><span>LYD9 LEAD MANAGER</span><span class="desktop-only">${LANG==="zh"?"展会客户管理":"Gestión de leads"}</span><button class="button secondary" style="min-height:32px;padding:5px 14px" onclick="adminLogout()">${LANG==="zh"?"退出":"Salir"}</button></div>
+      <div class="admin-top"><span>LYD9 LEAD MANAGER</span><span class="desktop-only">${LANG==="zh"?"展会客户管理":"Gestión de leads"}</span><button class="button secondary" style="min-height:32px;padding:5px 14px" onclick="refreshCentral()" title="${LANG==="zh"?"从云端刷新客资":"Actualizar desde la nube"}">🔄 ${LANG==="zh"?"刷新":"Actualizar"}</button><button class="button secondary" style="min-height:32px;padding:5px 14px" onclick="adminLogout()">${LANG==="zh"?"退出":"Salir"}</button></div>
       <div class="admin-content">${adminTab==="dashboard"?adminDashboard(counts,perStaff,pending,meeting,quoted,won):adminTab==="leads"?adminLeads():adminSettings()}</div>
     </div>
   </div>`;
@@ -743,12 +743,12 @@ function adminSettings(){
   </div>
   <div class="panel"><h2>${LANG==="zh"?"分配规则":"Reglas de asignación"}</h2>
     <label class="field">${LANG==="zh"?"Jenni 待首次跟进上限（超过则溢出给 Luna/Dan）":"Tope de Jenni (si se supera, desborda a Luna/Dan)"}<input id="jcap" type="number" min="0" value="${SETTINGS.jenniCap}" onchange="SETTINGS.jenniCap=parseInt(this.value)||0;persist()"></label>
-    <label class="field">${LANG==="zh"?"远程保存地址（可选，多设备汇总）":"URL de guardado remoto (opcional)"}<input id="endpoint" placeholder="https://script.google.com/... " value="${esc(SETTINGS.endpoint)}" onchange="SETTINGS.endpoint=this.value.trim();persist()"></label>
-    <p class="muted">${LANG==="zh"?"默认数据存在本机浏览器，可一键导出 CSV。填远程地址后每次提交会额外 POST 一份 JSON。":"Por defecto se guarda en este navegador. Con URL remota, cada envío hace POST."}</p>
+    <label class="field">${LANG==="zh"?"当前生效的中央收集地址（写死在网页里，所有客人手机共用）":"URL central activa (integrada en la web, compartida por todos)"}<input type="text" readonly value="${esc(SHEET_ENDPOINT||"")}"></label>
+    <p class="muted">${LANG==="zh"?"客人在自己手机提交后，资料会自动汇总到这张 Google 表格；登录本后台会自动读取全部客资。此地址只读，需更换时请修改网页文件并重新上传。":"Cada envío se suma a la hoja y el panel lee todos los leads al entrar. URL de solo lectura."}</p>
   </div>
   <div class="panel"><h2>${LANG==="zh"?"登录密码":"Contraseña"}</h2>
     <label class="field">${LANG==="zh"?"后台访问密码":"Contraseña del panel"}<input id="pw" type="text" value="${esc(SETTINGS.passcode)}" onchange="SETTINGS.passcode=this.value;persist()"></label>
-    <p class="muted">${LANG==="zh"?"注意：这是轻量保护，不是高安全方案。":"Nota: protección ligera, no de alta seguridad."}</p>
+    <p class="muted">${LANG==="zh"?"注意：这是轻量保护，不是高安全方案。若修改此密码，须同步修改 Google Apps Script 里的 ADMIN_PW，否则后台读不到云端客资。":"Nota: protección ligera. Si cambia la clave, actualice ADMIN_PW en Apps Script o el panel no leerá la nube."}</p>
   </div>`;
 }
 function uploadQR(key,input){
@@ -800,7 +800,7 @@ function saveLead(number){
   const na=$("#mNext").value.trim(),nd=$("#mDate").value;
   if(g!==l.grade){l.manual=true;l.manual_reason="grade";}
   l.grade=g;l.status=s;l.owner=o;l.wechat_status=wx;l.next_action=na;l.next_date=nd;
-  persist();render();document.querySelector(".modal-bg")?.remove();
+  persist();syncToSheet(l,"update");render();document.querySelector(".modal-bg")?.remove();
 }
 function exportCSV(list){
   const head=["编号","姓名","项目类型","面积","位置","城市","阶段","启动","服务","姓名2","渠道","联系方式","说明","等级","评分","负责人","状态","微信","提交时间","营销同意"];
@@ -814,7 +814,16 @@ function viewLogin(){
   const t=T[LANG];
   $("#app").innerHTML=`<div class="login-box"><span class="wordmark">LYD9<span>STUDIO</span></span><h2 style="margin-top:24px">${t.admin}</h2><input id="pw" type="password" placeholder="••••"><button class="button primary full" onclick="tryLogin()">${LANG==="zh"?"进入":"Entrar"}</button></div>`;
 }
-function tryLogin(){const v=$("#pw").value;if(v===SETTINGS.passcode){adminAuthed=true;render();}else alert(LANG==="zh"?"密码错误":"Contraseña incorrecta");}
+function tryLogin(){
+  const v=$("#pw").value;
+  if(v!==SETTINGS.passcode){alert(LANG==="zh"?"密码错误":"Contraseña incorrecta");return;}
+  adminAuthed=true;
+  render();                                   // 先显示本机数据，避免等待云端时白屏
+  loadCentral().then(ok=>{if(ok)render();});  // 拉到云端全量客资后刷新为汇总视图
+}
+function refreshCentral(){
+  loadCentral().then(ok=>{render();if(!ok)alert(LANG==="zh"?"云端读取失败，当前显示本机数据":"No se pudo leer la nube; se muestran datos locales");});
+}
 function adminLogout(){adminAuthed=false;location.hash="#/";render();}
 window.adminLogout=adminLogout;
 
@@ -846,7 +855,7 @@ function leadsBody(){
   return rows.length?rows.map(l=>`<tr><td><strong>${esc(l.number)}</strong></td><td><strong>${esc(l.name)}</strong><small>${esc(label("project_type",l.project_type))}</small></td><td><span class="badge grade-${l.grade==="A+"?"Aplus":l.grade}">${l.grade}</span></td><td>${l.score}</td><td>${esc(l.owner||"—")}</td><td>${statusLabel(l.status)}</td><td><button class="button secondary" onclick="openLead('${esc(l.number)}')">${LANG==="zh"?"查看":"Ver"}</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">${LANG==="zh"?"还没有客户。":"Aún no hay clientes."}</td></tr>`;
 }
 // 暴露全局
-window.render=render;window.openLead=openLead;window.saveLead=saveLead;window.uploadQR=uploadQR;window.tryLogin=tryLogin;window.adminTab="dashboard";window.filteredLeads=filteredLeads;window.allLeads=()=>LEADS;
+window.render=render;window.openLead=openLead;window.saveLead=saveLead;window.uploadQR=uploadQR;window.tryLogin=tryLogin;window.refreshCentral=refreshCentral;window.loadCentral=loadCentral;window.syncToSheet=syncToSheet;window.adminTab="dashboard";window.filteredLeads=filteredLeads;window.allLeads=()=>LEADS;
 window.download=download;window.exportCSV=exportCSV;
 window.addEventListener("hashchange",render);
 render();
