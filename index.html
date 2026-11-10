@@ -948,9 +948,9 @@ async function backendVersion(EP){
   return (d.v===3&&d.ok&&d.readOK)?3:(d.v===3?2:d.v);
 }
 function backendBrokenMsg(d){
-  const miss=d.missing.length?d.missing.join("、"):(d.err||"部分定义");
-  if(LANG!=="zh") return "El script está incompleto: falta "+miss+". Pegue el archivo apps-script.gs completo (296 líneas) y cree una «Nueva versión» en Despliegues.";
-  return "后端代码不完整：缺少 "+miss+"。\n\n多半是粘贴 apps-script.gs 时只复制了中间一段。请打开 apps-script.gs（共 296 行 / 约 11KB），在 Apps Script 编辑器里 Ctrl+A 全选 → 完整粘贴 → 保存 → 部署 › 管理部署 › 编辑 › 版本选「新建版本」› 部署。\n\n修好之前请先不要正式收客资。";
+  const miss=d.missing.length?d.missing.join("、"):(d.err||"顶部的常量定义与工具函数");
+  if(LANG!=="zh") return "El script está incompleto: falta "+miss+". Abra apps-script-粘贴用.txt en el Bloc de notas, Ctrl+A, pegue todo el archivo y cree una «Nueva versión» en Despliegues.";
+  return "后端代码不完整：缺少 "+miss+"。\n\n多半是粘贴脚本时只复制了中间一段。请用记事本打开 apps-script-粘贴用.txt（约 12KB / 310 多行），Ctrl+A 全选复制 → 在 Apps Script 编辑器里 Ctrl+A 全选后粘贴 → 保存 → 部署 › 管理部署 › 编辑 › 版本选「新建版本」› 部署。\n\n粘完按 Ctrl+End：最后一行必须能看到【完整性标记】。\n\n修好之前请先不要正式收客资。";
 }
 const OLD_BACKEND_ZH="后端仍是旧版脚本。\n\n请先做一次：Google 表格 → 扩展程序 › Apps Script → 全选粘贴新的 apps-script.gs → 保存 → 部署 › 管理部署 › 编辑 › 版本选「新建版本」› 部署。\n\nexec 网址不变，网页不用改。在此之前发号与分配会走降级。";
 const OLD_BACKEND_ES="El script sigue siendo la versión antigua. Pega el nuevo apps-script.gs y crea una «Nueva versión» en Despliegues › Gestionar despliegues.";
