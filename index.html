@@ -124,6 +124,14 @@
   .wxcard{margin:21.6px auto 6px;max-width:288px}
   .wxcard-img{width:100%;height:auto;border-radius:16.8px;box-shadow:0 8px 30px rgba(40,60,43,.12);display:block;background:#fff}
   .wxcard-cap{font-size:15.6px;color:var(--muted);margin-top:12px;text-align:center}
+  .numcard{margin:21.6px auto 6px;max-width:440px;border:1px solid var(--line);border-radius:16.8px;background:var(--white);padding:18px 20px 16px;text-align:center;box-shadow:0 8px 30px rgba(40,60,43,.08)}
+  .numcard-title{font-size:16.9px;font-weight:600;margin:0 0 6px;color:var(--ink)}
+  .numrow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:11px 2px;border-top:1px solid var(--line)}
+  .numname{font-size:16.9px;color:var(--muted);white-space:nowrap}
+  .numnum{font-size:20.8px;font-weight:700;color:#1c7a4c;text-decoration:none;white-space:nowrap;letter-spacing:.4px}
+  .numnum:hover{text-decoration:underline}
+  .numcard-cap{font-size:13.6px;color:var(--muted);margin:10px 0 0;line-height:1.6}
+  @media (max-width:456px){.numcard{padding:14px 14px 12px}.numrow{flex-direction:column;gap:2px}.numnum{font-size:20.8px}}
   /* admin */
   .admin-shell{display:flex;min-height:100vh}
   .sidebar{width:273.6px;flex-shrink:0;position:fixed;inset:0 auto 0 0;background:#f0f1e9;border-right:1px solid var(--line);padding:42px 24px;display:flex;flex-direction:column}
@@ -334,7 +342,7 @@ function clearDraft(){try{localStorage.removeItem(K_DRAFT);}catch(e){}}
 function loadJSON(k,def){try{const v=localStorage.getItem(k);return v?JSON.parse(v):def;}catch(e){return def;}}
 function saveJSON(k,v){localStorage.setItem(k,JSON.stringify(v));}
 let LEADS = loadJSON(K_LEADS,[]);
-let SETTINGS = Object.assign({passcode:"lyd9",jenniCap:5,endpoint:"",qr:{studio:"",Luna:"",Dan:"",Jenni:""}}, loadJSON(K_SETTINGS,{}));
+let SETTINGS = Object.assign({passcode:"lyd9",endpoint:"",qr:{studio:"",Luna:"",Dan:"",Jenni:""}}, loadJSON(K_SETTINGS,{}));
 if(!SETTINGS.qr) SETTINGS.qr={studio:"",Luna:"",Dan:"",Jenni:""};
 // ====== 中央收集地址（多手机汇总的关键）======
 // 所有客人提交都会发到这个地址，必须写死在网页里（随网页下发给每个人的手机），
@@ -346,6 +354,12 @@ const DEFAULT_QR={studio:"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAw0AAAMq
 const CANONICAL_URL='https://zzz955zzz.github.io/lyd9-lead-manager/';
 const ENTRY_QR='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAUAAAAFAAQMAAAD3XjfpAAAABlBMVEX///8AAABVwtN+AAAACXBIWXMAAA7EAAAOxAGVKw4bAAAB/0lEQVRoge2aMZKDMAxFxaSgzBE4CkcLR+MoOQJliky01pdkYGfTGu/MVwOxnqs/kj9WRBi9xqwRa/nxeN60PAZd5Kb6HDP3JngBuLlCut4/BYytC9bGj+cmgpeARSx9CSQUMQkzby/YRfCfgPfyLFWoa8k/tthBsAMQbVHiBbsIXgt6IUHCZVKNs+wt3xspwb5AjfAjrhTf/DKt3/LVpRBsAh5i8CXb6qB8CYItQJew9EcL64TlUbRUeylarmUHzCLBfsFyxC0yKvR8wHxAdI0jztpnPQsJNgQRk0m4SX5zmS0Uq8IBq4cg2A50W1ishNzNQdy09kePU3ER7BN0iaPw3Ob7N9eE/pi3GwRbg5o+fS/MvxspwcagSeiewqyEVdl4tIVnrQl2CEp2whn6prPHDXtI7/2RYHNQYQurhNEfkTv2R4KNwYNhj2HUaqrZBtxTWPq3syfYJVg9POTGj0ndKJ61JtgMxJIebMboedSlxW7YCTYFrXpi9uHxyhf14sphPME+wT1y9gF5NWzhDJrgBeCcWuXIF1VoX8P7YBF7CbYG88Baxa1EzbmEm+tJsGew/p/CDzTVvMdFnGwhwWtAjaWYMOKGHbX5W0KCjcEqYRZXDuOtygh2DIrnD//R/MCJKJz9afZBsCUYMoWE0HNAW/Sv4dPsg2CPIKPP+AH3MovwdVNtcQAAAABJRU5ErkJggg==';
 const WX_NAME={studio:"设计部门2",Luna:"Luna",Dan:"Dandan",Jenni:"Jenny"};
+// 三位同事的 WhatsApp / 电话（digits 用于 wa.me 与 tel: 链接，不含 + 与空格）
+const WA_NUM={
+  Luna :{digits:"34682555943",display:"+34 682 55 59 43"},
+  Dan  :{digits:"34600322090",display:"+34 600 322 090"},
+  Jenni:{digits:"34617459230",display:"+34 617 459 230"}
+};
 let COUNTER = (()=>{try{return parseInt(localStorage.getItem(K_COUNTER)||"0",10)||0;}catch(e){return 0;}})();
 let LANG = (()=>{try{return localStorage.getItem(K_LANG)==="es"?"es":"zh";}catch(e){return "zh";}})();
 function persist(){try{saveJSON(K_LEADS,LEADS);saveJSON(K_SETTINGS,SETTINGS);localStorage.setItem(K_COUNTER,String(COUNTER));localStorage.setItem(K_LANG,LANG);}catch(e){console.warn("storage unavailable",e);}}
@@ -357,27 +371,40 @@ function score(a){
   const g=s>=RULES.thresholds["A+"]?"A+":s>=RULES.thresholds.A?"A":s>=RULES.thresholds.B?"B":"C";
   return {score:s,grade:g};
 }
-function pendingOf(name){return LEADS.filter(l=>l.owner===name&&l.status==="new").length;}
-function leastLoaded(names){let best=names[0],bn=Infinity;for(const n of names){const c=pendingOf(n);if(c<bn){bn=c;best=n;}}return best;}
-function assign(type,grade){
-  if(grade==="B"||grade==="C") return null; // 公共池
-  if(type==="residential"){
-    if(pendingOf("Jenni")<SETTINGS.jenniCap) return "Jenni";
-    return leastLoaded(["Luna","Dan"]);
-  }
-  return leastLoaded(["Luna","Dan"]);
+// 分配车道：r = 餐饮 + 商业（Luna / Dandan 轮流），v = 住宅（Luna / Dandan / Jenny 轮流），
+// pool = B/C 低分客资（无人负责，公共池）。每人每次 1 条，轮完再从头，不设总量上限。
+function laneOf(type,grade){if(grade==="B"||grade==="C")return "pool";return type==="residential"?"v":"r";}
+function laneNames(lane){return lane==="v"?["Luna","Dan","Jenni"]:lane==="r"?["Luna","Dan"]:[];}
+function countLane(lane,name){return LEADS.filter(l=>laneOf(l.project_type,l.grade)===lane&&l.owner===name).length;}
+function assign(type,grade,spread){
+  const lane=laneOf(type,grade),names=laneNames(lane);
+  if(!names.length)return null;
+  const counts=names.map(n=>countLane(lane,n)),min=Math.min(...counts);
+  const tied=names.filter((n,i)=>counts[i]===min);
+  // spread=true 仅用于「云端不可用」的降级：本地无全局数据，随机打散避免所有人都落到第一个人
+  return (spread&&tied.length>1)?tied[Math.floor(Math.random()*tied.length)]:tied[0];
 }
-// 编号由云端统一发放（L6701 起），多手机同时提交也不会撞号；断网时用时间戳兜底保证唯一
-async function allocateNumber(){
+// 云端统一「发号 + 分配负责人」：一次原子请求，所有客人手机共用同一份计数，不会各算各的。
+// 旧版脚本只认 newid（不返回负责人），此时仍取正规编号，负责人用本地随机轮转降级。
+async function allocateSlot(type,grade){
   const EP=(SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
+  const lane=laneOf(type,grade);
+  let number="";
   if(EP){
     try{
-      const r=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+"action=newid",{cache:"no-store"});
-      const id=(await r.text()).trim();
-      if(/^L\d+$/.test(id)) return id;
+      const q="action=slot&lane="+lane+"&t="+encodeURIComponent(type||"")+"&g="+encodeURIComponent(grade||"");
+      const r=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+q,{cache:"no-store"});
+      const txt=(await r.text()).trim();
+      let d=null;try{d=JSON.parse(txt);}catch(e){}
+      if(d&&/^L\d+$/.test(d.number||"")) return {number:d.number,owner:(typeof d.owner==="string"&&d.owner)||null};
+    }catch(e){}
+    try{
+      const r2=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+"action=newid",{cache:"no-store"});
+      const id=(await r2.text()).trim();
+      if(/^L\d+$/.test(id)) number=id;
     }catch(e){}
   }
-  return "L"+Date.now().toString().slice(-8);
+  return {number:number||"L"+Date.now().toString().slice(-8),owner:assign(type,grade,true)};
 }
 function assistance(a){
   const zh=LANG==="zh";
@@ -629,12 +656,12 @@ async function onSubmit(e){
     consent_marketing:fd.get("consent_marketing")!==null,
   };
   const {score:sc,grade:gr}=score(answers);
-  const owner=assign(answers.project_type,gr);
   const btn=$("#submitBtn");
   submitting=true;
   if(btn){btn.disabled=true;btn.textContent=LANG==="zh"?"提交中…":"Enviando…";}
   try{
-    const number=await allocateNumber(); // 云端统一发号 L6701 起
+    const slot=await allocateSlot(answers.project_type,gr); // 云端统一发号 + 分配负责人
+    const number=slot.number,owner=slot.owner;
     const lead={
       number,owner,grade:gr,score:sc,status:"new",wechat_status:"not_added",
       submitted_at:new Date().toISOString(),manual:false,notes_history:[],
@@ -685,6 +712,19 @@ function viewThanks(lead){
   const qrKey=lead.owner||"studio";
   const qr=(SETTINGS.qr[qrKey]||(typeof DEFAULT_QR!=="undefined"&&DEFAULT_QR[qrKey]))||"";
   const wx=WX_NAME[qrKey]||"";
+  const ch=lead.channel;
+  const byNumber=(ch==="whatsapp"||ch==="phone"); // 选 WhatsApp / 电话 → 显示号码；微信 / 邮件 → 显示二维码
+  const contactName=lead.owner?(WX_NAME[lead.owner]||lead.owner):"";
+  const nums=byNumber?(lead.owner&&WA_NUM[lead.owner]?[lead.owner]:STAFF).map(k=>Object.assign({key:k},WA_NUM[k])):[];
+  const msg=encodeURIComponent(LANG==="zh"?"您好，我刚提交了 LYD9 项目问卷，编号 "+lead.number:"Hola, acabo de enviar el cuestionario LYD9. Referencia: "+lead.number);
+  const numCard=byNumber?`<div class="numcard">
+      <p class="numcard-title">${lead.owner
+        ?esc(ch==="whatsapp"?(LANG==="zh"?"WhatsApp 联系":"Contacto por WhatsApp"):(LANG==="zh"?"电话联系":"Contacto telefónico"))
+        :esc(LANG==="zh"?"LYD9 STUDIO · 项目团队":"LYD9 STUDIO · Equipo")}</p>
+      ${nums.map(n=>`<div class="numrow"><span class="numname">${esc(WX_NAME[n.key]||n.key)}</span><a class="numnum" href="${ch==="whatsapp"?"https://wa.me/"+n.digits+"?text="+msg:"tel:+"+n.digits}">${esc(n.display)}</a></div>`).join("")}
+      <p class="numcard-cap">${esc(ch==="whatsapp"?(LANG==="zh"?"点号码可直接发 WhatsApp 消息（已带上你的编号）":"Toque el número para abrir WhatsApp (incluye su referencia)"):(LANG==="zh"?"点号码可直接拨打电话":"Toque el número para llamar"))}</p>
+    </div>`:
+    (qr?`<div class="wxcard"><img class="wxcard-img" src="${esc(qr)}" alt="WeChat ${esc(wx)}"><p class="wxcard-cap">${esc(LANG==="zh"?"微信扫一扫，添加好友 · "+wx:"Escanee para añadir · "+wx)}</p></div>`:`<div class="notice">${esc(t.qrMissing)}</div>`);
   const app=$("#app");
   app.innerHTML=`
   <div class="public-shell"><main class="public-main" style="min-height:72vh;display:flex;align-items:center">
@@ -695,8 +735,8 @@ function viewThanks(lead){
         <h2>${t.successTitle}</h2>
         <p>${t.successP}</p>
         <div class="receipt">${lead.number}</div>
-        <p>${lead.owner?esc(t.owner(lead.owner)):esc(t.studio)}</p>
-        ${qr?`<div class="wxcard"><img class="wxcard-img" src="${esc(qr)}" alt="WeChat ${esc(wx)}"><p class="wxcard-cap">${esc(LANG==="zh"?"微信扫一扫，添加好友 · "+wx:"Escanee para añadir · "+wx)}</p></div>`:`<div class="notice">${esc(t.qrMissing)}</div>`}
+        <p>${lead.owner?esc(t.owner(contactName)):esc(t.studio)}</p>
+        ${numCard}
         <p class="muted">${t.saveHint}</p>
         <p><a class="button secondary" href="#" onclick="location.reload()">↺</a></p>
       </div>
@@ -774,15 +814,22 @@ function adminSettings(){
     <button class="button secondary" style="margin-top:12px" onclick="navigator.clipboard&&navigator.clipboard.writeText('${esc(entryURL)}')">${LANG==="zh"?"复制链接":"Copiar enlace"}</button>
   </div>
   <div class="panel"><h2>${LANG==="zh"?"微信二维码":"Códigos QR de WeChat"}</h2>
-    <p class="muted">${LANG==="zh"?"上传后，客户提交完成页会显示对应联系人二维码；B/C 客户显示工作室公共二维码。":"Suba los QR; el cliente verá el de su contacto. B/C ven el QR público."}</p>
+    <p class="muted">${LANG==="zh"?"客户选微信 / 邮件时显示对应联系人二维码；选 WhatsApp / 电话时改为显示对应号码。B/C 客户显示公共二维码或三个号码。":"Con WeChat / Correo se muestra el QR del contacto; con WhatsApp / Teléfono, su número. B/C ven el QR público o los tres números."}</p>
     <div class="settings-grid">${slot("studio",t.studio)}${slot("Luna","Luna")}${slot("Dan","Dan")}${slot("Jenni","Jenni")}</div>
   </div>
   <div class="panel"><h2>${LANG==="zh"?"分配规则":"Reglas de asignación"}</h2>
-    <label class="field">${LANG==="zh"?"Jenni 待首次跟进上限（超过则溢出给 Luna/Dan）":"Tope de Jenni (si se supera, desborda a Luna/Dan)"}<input id="jcap" type="number" min="0" value="${SETTINGS.jenniCap}" onchange="SETTINGS.jenniCap=parseInt(this.value)||0;persist()"></label>
+    <div class="panel" style="margin:0 0 14px;padding:14px 16px;background:var(--soft)">
+      <p style="margin:0 0 6px;font-size:15.6px;font-weight:600">${LANG==="zh"?"当前规则（由云端统一执行）":"Reglas activas (ejecutadas en la nube)"}</p>
+      <p class="muted" style="margin:0;font-size:14.3px;line-height:1.7">${LANG==="zh"?"餐饮 / 商业 → Luna → Dandan → Luna … 轮流<br>住宅 → Luna → Dandan → Jenny → Luna … 轮流<br>B / C 低分客资 → 公共池（无人负责，显示公共码或三个号码）<br>每次每人 1 条，轮完再从头，不封顶。":"Restauración / Comercial → Luna → Dandan → Luna …<br>Vivienda → Luna → Dandan → Jenny → Luna …<br>Clientes B / C → pool común (sin responsable)<br>Uno por persona y por ronda, sin límite total."}</p>
+    </div>
     <label class="field">${LANG==="zh"?"当前生效的中央收集地址（写死在网页里，所有客人手机共用）":"URL central activa (integrada en la web, compartida por todos)"}<input type="text" readonly value="${esc(SHEET_ENDPOINT||"")}"></label>
     <p class="muted">${LANG==="zh"?"客人在自己手机提交后，资料会自动汇总到这张 Google 表格；登录本后台会自动读取全部客资。此地址只读，需更换时请修改网页文件并重新上传。":"Cada envío se suma a la hoja y el panel lee todos los leads al entrar. URL de solo lectura."}</p>
-    <button class="button secondary" onclick="renumberRemote()">🔢 ${LANG==="zh"?"把现有客资编号重整为 L6701 起":"Renumerar desde L6701"}</button>
-    <p class="muted">${LANG==="zh"?"只需点一次：把表格里现有记录按行序改为 L6701、L6702…，之后新提交自动接着编号，多手机不会撞号。若提示失败，请先为 Apps Script 新建部署版本。":"Una sola vez: renumerará los registros existentes; los nuevos envíos seguirán la secuencia sin duplicados."}</p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="button secondary" onclick="checkBackend()">🔍 ${LANG==="zh"?"检查后端版本":"Comprobar backend"}</button>
+      <button class="button secondary" onclick="renumberRemote()">🔢 ${LANG==="zh"?"清理空行并重整编号（可选）":"Limpiar y renumerar (opcional)"}</button>
+    </div>
+    <p class="muted" id="beStat">${LANG==="zh"?"点「检查后端版本」可确认 Apps Script 是否已更新；未更新时发号与分配会走降级。":"Pulse «Comprobar backend» para verificar el script."}</p>
+    <p class="muted">${LANG==="zh"?"新客资即使不重整也会自动从 L6701 开始。重整只是把旧的重复编号、空白测试行清理成连续编号，开展前点一次即可；已有客资的负责人不会变。":"Los nuevos envíos ya empiezan en L6701 sin renumerar. Renumerar solo limpia duplicados y filas vacías."}</p>
   </div>
   <div class="panel"><h2>${LANG==="zh"?"登录密码":"Contraseña"}</h2>
     <label class="field">${LANG==="zh"?"后台访问密码":"Contraseña del panel"}<input id="pw" type="text" value="${esc(SETTINGS.passcode)}" onchange="SETTINGS.passcode=this.value;persist()"></label>
@@ -873,17 +920,48 @@ function deleteLead(number){
   render();
   document.querySelector(".modal-bg")?.remove();
 }
-// 一次性：把云端表格里现有记录按行序重编为 L6701 起（解决旧的重复 LYD9-001）
-async function renumberRemote(){
-  if(!confirm(LANG==="zh"?"将把云端表格里现有客资编号按行序改为 L6701、L6702…，确定？":"¿Renumerar los leads existentes desde L6701?")) return;
-  const EP=(SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
-  if(!EP){alert(LANG==="zh"?"未设置中央收集地址":"Falta la URL central");return;}
+const epURL=()=> (SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
+const epAction=(EP,a)=> EP+(EP.indexOf("?")>=0?"&":"?")+"action="+a;
+// 后端版本自检：旧脚本不认 action=version（返回 forbidden 或全量数组），据此给出准确指引
+async function backendVersion(EP){
   try{
-    const r=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+"action=renumber&pw="+encodeURIComponent(SETTINGS.passcode||""),{cache:"no-store"});
+    const r=await fetch(epAction(EP,"version"),{cache:"no-store"});
+    const j=JSON.parse(await r.text());
+    return (j&&j.v===3)?3:0;
+  }catch(e){return -1;}
+}
+const OLD_BACKEND_ZH="后端仍是旧版脚本。\n\n请先做一次：Google 表格 → 扩展程序 › Apps Script → 全选粘贴新的 apps-script.gs → 保存 → 部署 › 管理部署 › 编辑 › 版本选「新建版本」› 部署。\n\nexec 网址不变，网页不用改。在此之前发号与分配会走降级。";
+const OLD_BACKEND_ES="El script sigue siendo la versión antigua. Pega el nuevo apps-script.gs y crea una «Nueva versión» en Despliegues › Gestionar despliegues.";
+async function checkBackend(){
+  const EP=epURL();
+  const set=s=>{const el=document.getElementById("beStat");if(el)el.textContent=s;};
+  if(!EP){const m=LANG==="zh"?"未设置中央收集地址":"Falta la URL central";set(m);alert(m);return;}
+  const v=await backendVersion(EP);
+  let m;
+  if(v===3) m=LANG==="zh"?"✅ 后端已是新版：发号 L6701 起、轮流分配、删改、重整都可用":"✅ Backend actualizado: numeración, reparto y edición OK";
+  else if(v===0) m="⚠️ "+(LANG==="zh"?OLD_BACKEND_ZH:OLD_BACKEND_ES);
+  else m=LANG==="zh"?"⚠️ 连不上后端：请检查网络，或确认 Web App 网址仍有效":"⚠️ Sin conexión con el backend";
+  set(m);alert(m);
+}
+// 可选：清理空白测试行 + 把现有记录重编为 L6701 起（解决旧的重复 LYD9-001 / 时间戳号）
+async function renumberRemote(){
+  const EP=epURL();
+  if(!EP){alert(LANG==="zh"?"未设置中央收集地址":"Falta la URL central");return;}
+  const v=await backendVersion(EP);
+  if(v!==3){
+    alert(LANG==="zh"?"暂时不能重整：\n\n"+OLD_BACKEND_ZH+"\n\n好消息：不重整也不影响收客资，新提交会自动从 L6701 开始。":"No se puede renumerar.\n\n"+OLD_BACKEND_ES);
+    return;
+  }
+  if(!confirm(LANG==="zh"?"将清理表格里的空白测试行，并把剩余客资编号按行序改为 L6701、L6702…，确定？\n（已有客资的负责人不会变）":"¿Limpiar filas vacías y renumerar desde L6701?")) return;
+  try{
+    const r=await fetch(epAction(EP,"renumber")+"&pw="+encodeURIComponent(SETTINGS.passcode||""),{cache:"no-store"});
     const j=await r.json();
-    if(j&&j.ok){await loadCentral();render();alert(LANG==="zh"?`已重整 ${j.renumbered} 条客资`:`Renumerados ${j.renumbered}`);}
-    else alert(LANG==="zh"?"重整失败：密码不匹配，或脚本未部署新版本":"Falló: contraseña o versión del script");
-  }catch(e){alert(LANG==="zh"?"重整失败：网络异常或脚本未部署新版本":"Falló: red o versión del script");}
+    if(j&&j.ok){
+      await loadCentral();render();
+      alert(LANG==="zh"?`已重整 ${j.renumbered} 条客资${j.removed?`，并清理 ${j.removed} 条空白测试行`:""}`:`Renumerados ${j.renumbered}${j.removed?", limpiadas "+j.removed:""}`);
+    }
+    else alert(LANG==="zh"?"重整失败：后台密码与 Apps Script 里的 ADMIN_PW 不一致。":"Falló: la contraseña no coincide con ADMIN_PW");
+  }catch(e){alert(LANG==="zh"?"重整失败：网络异常，请重试":"Falló: error de red");}
 }
 function exportCSV(list){
   const head=["编号","姓名","项目类型","面积","位置","城市","阶段","启动","服务","姓名2","渠道","联系方式","说明","等级","评分","负责人","状态","微信","提交时间","营销同意"];
@@ -938,7 +1016,7 @@ function leadsBody(){
   return rows.length?rows.map(l=>`<tr><td><strong>${esc(l.number)}</strong></td><td><strong>${esc(l.name)}</strong><small>${esc(label("project_type",l.project_type))}</small></td><td><span class="badge grade-${l.grade==="A+"?"Aplus":l.grade}">${l.grade}</span></td><td>${l.score}</td><td>${esc(l.owner||"—")}</td><td>${statusLabel(l.status)}</td><td><button class="button secondary" onclick="openLead('${esc(l.number)}')">${LANG==="zh"?"查看":"Ver"}</button></td></tr>`).join(""):`<tr><td colspan="7" class="empty">${LANG==="zh"?"还没有客户。":"Aún no hay clientes."}</td></tr>`;
 }
 // 暴露全局
-window.render=render;window.openLead=openLead;window.saveLead=saveLead;window.uploadQR=uploadQR;window.tryLogin=tryLogin;window.refreshCentral=refreshCentral;window.loadCentral=loadCentral;window.syncToSheet=syncToSheet;window.deleteLead=deleteLead;window.renumberRemote=renumberRemote;window.allocateNumber=allocateNumber;window.adminTab="dashboard";window.filteredLeads=filteredLeads;window.allLeads=()=>LEADS;
+window.render=render;window.openLead=openLead;window.saveLead=saveLead;window.uploadQR=uploadQR;window.tryLogin=tryLogin;window.refreshCentral=refreshCentral;window.loadCentral=loadCentral;window.syncToSheet=syncToSheet;window.deleteLead=deleteLead;window.renumberRemote=renumberRemote;window.checkBackend=checkBackend;window.allocateSlot=allocateSlot;window.adminTab="dashboard";window.filteredLeads=filteredLeads;window.allLeads=()=>LEADS;
 window.download=download;window.exportCSV=exportCSV;
 window.addEventListener("hashchange",render);
 render();
