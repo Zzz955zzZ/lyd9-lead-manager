@@ -699,7 +699,12 @@ async function loadCentral(){
     const norm=d=>{const o=Object.assign({status:"new",wechat_status:"not_added",manual:false,notes_history:[],next_action:"",next_date:"",score:0,grade:"C"},d);if(typeof o.services==="string")o.services=o.services?o.services.split(" | "):[];if(!Array.isArray(o.services))o.services=[];return o;};
     const central=data.map(norm);
     const seen=new Set(central.map(d=>d.number));
-    LEADS.forEach(l=>{if(!seen.has(l.number))central.push(l);}); // 保留本机独有记录
+    // 云端有数据时，本机只补「编号在合法新号段内、且云端还没有」的记录（例如刚离线提交尚未同步）。
+    // 旧格式 LYD9-001 与断网时间戳号 L26266961 属于历史缓存：云端重整后它们已变成 L670x，
+    // 若照旧无条件合并，后台会同时显示三套编号、看起来像重复客资。云端为空时则照旧全保留，避免丢离线数据。
+    const validNo=n=>{const m=/^L(\d+)$/.exec(String(n||""));if(!m)return false;const v=parseInt(m[1],10);return v>=6701&&v<=106700;};
+    const localKeep=central.length?LEADS.filter(l=>!seen.has(l.number)&&validNo(l.number)):LEADS.filter(l=>!seen.has(l.number));
+    localKeep.forEach(l=>central.push(l));
     LEADS=central;
     persist();
     return true;
