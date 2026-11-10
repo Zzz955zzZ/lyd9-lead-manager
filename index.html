@@ -371,10 +371,10 @@ function score(a){
   const g=s>=RULES.thresholds["A+"]?"A+":s>=RULES.thresholds.A?"A":s>=RULES.thresholds.B?"B":"C";
   return {score:s,grade:g};
 }
-// 分配车道：r = 餐饮 + 商业（Luna / Dandan 轮流），v = 住宅（Luna / Dandan / Jenny 轮流），
-// pool = B/C 低分客资（无人负责，公共池）。每人每次 1 条，轮完再从头，不设总量上限。
+// 分配车道：r = 餐饮 + 商业（Luna / Dandan 轮流），v = 住宅（三人轮流），
+// pool = B/C 低分客资（同样三人轮流，只分配一位负责人）。每人每次 1 条，轮完再从头，不设上限。
 function laneOf(type,grade){if(grade==="B"||grade==="C")return "pool";return type==="residential"?"v":"r";}
-function laneNames(lane){return lane==="v"?["Luna","Dan","Jenni"]:lane==="r"?["Luna","Dan"]:[];}
+function laneNames(lane){return lane==="v"?["Luna","Dan","Jenni"]:lane==="r"?["Luna","Dan"]:["Luna","Dan","Jenni"];}
 function countLane(lane,name){return LEADS.filter(l=>laneOf(l.project_type,l.grade)===lane&&l.owner===name).length;}
 function assign(type,grade,spread){
   const lane=laneOf(type,grade),names=laneNames(lane);
@@ -385,18 +385,20 @@ function assign(type,grade,spread){
   return (spread&&tied.length>1)?tied[Math.floor(Math.random()*tied.length)]:tied[0];
 }
 // 云端统一「发号 + 分配负责人」：一次原子请求，所有客人手机共用同一份计数，不会各算各的。
-// 旧版脚本只认 newid（不返回负责人），此时仍取正规编号，负责人用本地随机轮转降级。
+// 旧版脚本的 pool 车道是空数组（不分配负责人），所以 B/C 请求成 v 车道 —— 旧版也能云端三人轮流；
+// 新版脚本会按参数 g=B/C 自动纠正回独立的 pool 车道。旧脚本只认 newid 时走本地轮转降级。
 async function allocateSlot(type,grade){
   const EP=(SHEET_ENDPOINT||"").trim()||(SETTINGS.endpoint||"").trim();
   const lane=laneOf(type,grade);
+  const reqLane=lane==="pool"?"v":lane;
   let number="";
   if(EP){
     try{
-      const q="action=slot&lane="+lane+"&t="+encodeURIComponent(type||"")+"&g="+encodeURIComponent(grade||"");
+      const q="action=slot&lane="+reqLane+"&t="+encodeURIComponent(type||"")+"&g="+encodeURIComponent(grade||"");
       const r=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+q,{cache:"no-store"});
       const txt=(await r.text()).trim();
       let d=null;try{d=JSON.parse(txt);}catch(e){}
-      if(d&&/^L\d+$/.test(d.number||"")) return {number:d.number,owner:(typeof d.owner==="string"&&d.owner)||null};
+      if(d&&/^L\d+$/.test(d.number||"")) return {number:d.number,owner:(typeof d.owner==="string"&&d.owner)||assign(type,grade,true)||null};
     }catch(e){}
     try{
       const r2=await fetch(EP+(EP.indexOf("?")>=0?"&":"?")+"action=newid",{cache:"no-store"});
@@ -720,16 +722,15 @@ function viewThanks(lead){
   const ch=lead.channel;
   const byNumber=(ch==="whatsapp"||ch==="phone"); // 选 WhatsApp / 电话 → 显示号码；微信 / 邮件 → 显示二维码
   const contactName=lead.owner?(WX_NAME[lead.owner]||lead.owner):"";
-  const nums=byNumber?(lead.owner&&WA_NUM[lead.owner]?[lead.owner]:STAFF).map(k=>Object.assign({key:k},WA_NUM[k])):[];
+  // 无论 A/B/C 都只显示分配给这位客户的一位联系人；不再一次列出三个号码
+  const nums=byNumber&&lead.owner&&WA_NUM[lead.owner]?[Object.assign({key:lead.owner},WA_NUM[lead.owner])]:[];
   const msg=encodeURIComponent(LANG==="zh"?"您好，我刚提交了 LYD9 项目问卷，编号 "+lead.number:"Hola, acabo de enviar el cuestionario LYD9. Referencia: "+lead.number);
-  const numCard=byNumber?`<div class="numcard">
-      <p class="numcard-title">${lead.owner
-        ?esc(ch==="whatsapp"?(LANG==="zh"?"WhatsApp 联系":"Contacto por WhatsApp"):(LANG==="zh"?"电话联系":"Contacto telefónico"))
-        :esc(LANG==="zh"?"LYD9 STUDIO · 项目团队":"LYD9 STUDIO · Equipo")}</p>
+  const qrCard=qr?`<div class="wxcard"><img class="wxcard-img" src="${esc(qr)}" alt="WeChat ${esc(wx)}"><p class="wxcard-cap">${esc(LANG==="zh"?"微信扫一扫，添加好友 · "+wx:"Escanee para añadir · "+wx)}</p></div>`:`<div class="notice">${esc(t.qrMissing)}</div>`;
+  const numCard=nums.length?`<div class="numcard">
+      <p class="numcard-title">${esc(ch==="whatsapp"?(LANG==="zh"?"WhatsApp 联系":"Contacto por WhatsApp"):(LANG==="zh"?"电话联系":"Contacto telefónico"))}</p>
       ${nums.map(n=>`<div class="numrow"><span class="numname">${esc(WX_NAME[n.key]||n.key)}</span><a class="numnum" href="${ch==="whatsapp"?"https://wa.me/"+n.digits+"?text="+msg:"tel:+"+n.digits}">${esc(n.display)}</a></div>`).join("")}
       <p class="numcard-cap">${esc(ch==="whatsapp"?(LANG==="zh"?"点号码可直接发 WhatsApp 消息（已带上你的编号）":"Toque el número para abrir WhatsApp (incluye su referencia)"):(LANG==="zh"?"点号码可直接拨打电话":"Toque el número para llamar"))}</p>
-    </div>`:
-    (qr?`<div class="wxcard"><img class="wxcard-img" src="${esc(qr)}" alt="WeChat ${esc(wx)}"><p class="wxcard-cap">${esc(LANG==="zh"?"微信扫一扫，添加好友 · "+wx:"Escanee para añadir · "+wx)}</p></div>`:`<div class="notice">${esc(t.qrMissing)}</div>`);
+    </div>`:qrCard;
   const app=$("#app");
   app.innerHTML=`
   <div class="public-shell"><main class="public-main" style="min-height:72vh;display:flex;align-items:center">
@@ -825,7 +826,7 @@ function adminSettings(){
   <div class="panel"><h2>${LANG==="zh"?"分配规则":"Reglas de asignación"}</h2>
     <div class="panel" style="margin:0 0 14px;padding:14px 16px;background:var(--soft)">
       <p style="margin:0 0 6px;font-size:15.6px;font-weight:600">${LANG==="zh"?"当前规则（由云端统一执行）":"Reglas activas (ejecutadas en la nube)"}</p>
-      <p class="muted" style="margin:0;font-size:14.3px;line-height:1.7">${LANG==="zh"?"餐饮 / 商业 → Luna → Dandan → Luna … 轮流<br>住宅 → Luna → Dandan → Jenny → Luna … 轮流<br>B / C 低分客资 → 公共池（无人负责，显示公共码或三个号码）<br>每次每人 1 条，轮完再从头，不封顶。":"Restauración / Comercial → Luna → Dandan → Luna …<br>Vivienda → Luna → Dandan → Jenny → Luna …<br>Clientes B / C → pool común (sin responsable)<br>Uno por persona y por ronda, sin límite total."}</p>
+      <p class="muted" style="margin:0;font-size:14.3px;line-height:1.7">${LANG==="zh"?"餐饮 / 商业 → Luna → Dandan → Luna … 轮流<br>住宅 → Luna → Dandan → Jenny → Luna … 轮流<br>B / C 低分客资 → 同样 Luna → Dandan → Jenny 轮流，只显示一位联系人<br>三条车道各自计数，B/C 不占用餐饮 / 住宅名额；每次每人 1 条，轮完再从头，不封顶。":"Restauración / Comercial → Luna → Dandan → Luna …<br>Vivienda → Luna → Dandan → Jenny → Luna …<br>Clientes B / C → también Luna → Dandan → Jenny, un solo contacto<br>Cada carril cuenta por separado; uno por persona y ronda, sin límite total."}</p>
     </div>
     <label class="field">${LANG==="zh"?"当前生效的中央收集地址（写死在网页里，所有客人手机共用）":"URL central activa (integrada en la web, compartida por todos)"}<input type="text" readonly value="${esc(SHEET_ENDPOINT||"")}"></label>
     <p class="muted">${LANG==="zh"?"客人在自己手机提交后，资料会自动汇总到这张 Google 表格；登录本后台会自动读取全部客资。此地址只读，需更换时请修改网页文件并重新上传。":"Cada envío se suma a la hoja y el panel lee todos los leads al entrar. URL de solo lectura."}</p>
